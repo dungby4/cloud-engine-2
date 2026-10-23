@@ -124,7 +124,7 @@ APP_CONFIG = load_app_config()
 PORT = int(APP_CONFIG.get("port") or 8088)
 MACHINE_ID = str(APP_CONFIG.get("machine_id") or "m1")
 ACCOUNT_PREFIX = str(APP_CONFIG.get("account_prefix") or "htd_vip")
-PARALLEL_REROLL_WORKERS = int(APP_CONFIG.get("threads") or 24)
+PARALLEL_REROLL_WORKERS = int(APP_CONFIG.get("threads") or 36)
 
 CDN_BASE = "https://rescdnft105vn.ridvqqxa.com/13528/"
 CDN_CACHE_DIR = os.path.join(DIRECTORY, "cdn_cache")
@@ -1512,49 +1512,52 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
             await ws.send(_pkt_msg(87, struct.pack(">ii", item_id, qty)))
             await asyncio.sleep(0.16)
 
-        # PHƯƠNG ÁN 3 (VẮT FULL THÔNG MINH 2 TẦNG):
-        # Tầng 1: Mọi nick (100%) đều mở 250 mảnh (5 tướng) + xả luôn 1 đơn & 6 lần x10 Thiên Mệnh (61 lượt quay = ~10 tướng 5★, chỉ mất ~3.2s)
+        # CHẾ ĐỘ MỞ ALL 100% (KHÔNG CHƠI XÁC SUẤT - MỌI NICK ĐỀU XẢ SẠCH 68 THIÊN MỆNH + 14 TAM GIỚI):
+        # 1. Đã mở 250 mảnh 5★ (5 tướng). Riêng 11 mảnh lẻ giữ nguyên trong túi không ghép ép.
+        # 2. Xả sạch 100% 68 lượt Thiên Mệnh (1 đơn + 6 lần x10 + 7 lần đơn)
         await ws.send(_pkt_msg(1320, b"\x01"))
         await asyncio.sleep(0.08)
 
-        set_step(f"Đang xả 61 lượt Thiên Mệnh (6x10) tìm Dương Tiễn / Ngộ Không (DT:{dt_count} | TNK:{tnk_count})...")
+        set_step(f"Đang xả 68 vé Thiên Mệnh (DT:{dt_count} | TNK:{tnk_count})...")
         await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 1, 1)))
-        await asyncio.sleep(0.46)
+        await asyncio.sleep(0.44)
 
         for p_idx in range(1, 7):
           if REROLL_STATE["stopRequested"]:
             break
           set_step(f"Đang quay Thiên Mệnh x10 lần {p_idx}/6 (DT:{dt_count} | TNK:{tnk_count})...")
           await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 2, 1)))
-          await asyncio.sleep(0.46)
+          await asyncio.sleep(0.44)
 
-        await asyncio.sleep(0.18)
+        for _ in range(7):
+          if REROLL_STATE["stopRequested"]:
+            break
+          await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 1, 1)))
+          await asyncio.sleep(0.38)
 
-        # Tầng 2: Sau 250 mảnh + 61 lượt Thiên Mệnh (~66 tướng), hễ có >= 1 Dương Tiễn hoặc Ngộ Không -> Dồn 100% 14 vé Tam Giới đúng hệ + 7 vé lẻ để chốt 2x/3x!
-        if (dt_count + tnk_count) >= 1:
-          if dt_count >= tnk_count and dt_count >= 1:
-            camp_id = 4
-            camp_label = "Hệ Tiên (Chốt 2x/3x Dương Tiễn)"
-          else:
-            camp_id = 5
-            camp_label = "Hệ Yêu (Chốt 2x/3x Tôn Ngộ Không)"
+        # 3. Xả sạch 100% 14 vé Tam Giới cho MỌI NICK (Không lọc xác suất nữa, vắt kiệt 100% cơ hội nổ 2x)
+        # Ưu tiên dồn hệ: có Dương Tiễn -> Tiên (4); có Ngộ Không -> Yêu (5); chưa có cả 2 -> Tiên (4 - Dương Tiễn hot nhất)
+        if dt_count > tnk_count and dt_count >= 1:
+          camp_id = 4
+          camp_label = "Hệ Tiên (Săn 2x Dương Tiễn)"
+        elif tnk_count > dt_count and tnk_count >= 1:
+          camp_id = 5
+          camp_label = "Hệ Yêu (Săn 2x Tôn Ngộ Không)"
+        else:
+          camp_id = 4
+          camp_label = "Hệ Tiên (Săn Dương Tiễn)"
 
-          set_step(f"Đã có phôi! Đang dồn 14 vé Tam Giới vào {camp_label} + vét 7 vé lẻ (DT:{dt_count} | TNK:{tnk_count})...")
-          await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 2, 1)))
-          await asyncio.sleep(0.48)
+        set_step(f"Đang xả sạch 14 vé Tam Giới vào {camp_label} (DT:{dt_count} | TNK:{tnk_count})...")
+        await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 2, 1)))
+        await asyncio.sleep(0.46)
 
-          for _ in range(7):
-            if REROLL_STATE["stopRequested"]:
-              break
-            await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 1, 1)))
-            await asyncio.sleep(0.40)
-          for _ in range(4):
-            if REROLL_STATE["stopRequested"]:
-              break
-            await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 1, 1)))
-            await asyncio.sleep(0.40)
+        for _ in range(4):
+          if REROLL_STATE["stopRequested"]:
+            break
+          await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 1, 1)))
+          await asyncio.sleep(0.38)
 
-          await asyncio.sleep(0.28)
+        await asyncio.sleep(0.24)
 
         # NẾU NICK TRÚNG >= 2x DƯƠNG TIỄN HOẶC >= 2x TÔN NGỘ KHÔNG: Tự động Skip Tân Thủ 100%
         if (dt_count >= 2) or (tnk_count >= 2):
