@@ -1,0 +1,15 @@
+{
+  "machine_id": "m1",
+  "account_prefix": "htd_vip",
+  "threads": 24,
+  "port": 8088,
+  "target_server": "latest",
+  "min_copies": 2,
+  "sales_bot": {
+    "enabled": false,
+    "webhook_url": "",
+    "auth_token": "",
+    "telegram_bot_token": "",
+    "telegram_chat_id": ""
+  }
+}

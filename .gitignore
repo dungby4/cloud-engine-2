@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+
+# Local machine overrides
+config_local.json
+
+# Local accounts database (avoids multi-machine merge conflicts)
+DAN_NICK_DA_QUAY*.json
+
+# Logs & temp files
+*.log
+temp_*
+reshoot_*
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+desktop.ini

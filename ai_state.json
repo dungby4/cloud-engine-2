@@ -1,0 +1,124 @@
+{
+  "lastUpdate": 1792719473679,
+  "clientType": "Đang khởi động...",
+  "account": "721091521",
+  "roleName": "htdvipz480",
+  "level": 1,
+  "lv": 1,
+  "combatPower": 752,
+  "zhandouli": 752,
+  "zuanshi": 200,
+  "jinbi": 21088,
+  "totalHeroes": 8,
+  "stageId": 0,
+  "stageName": "",
+  "serverName": "Cao Lão Trang-S2",
+  "serverId": 610022,
+  "serverIndex": 22,
+  "wsUrl": "wss://wss-funtap-xy.xinliugame.net:9037/",
+  "timestamp": "1792719476",
+  "authKey": "984aec0ce2a19eb119234b50bff13ecd",
+  "loginToken": "",
+  "aiAutoPlay": false,
+  "autoCampaign": false,
+  "autoTower": false,
+  "autoRerollS2": false,
+  "rerollAttempt": 0,
+  "rerollIdx": 0,
+  "topHeroes": [
+    {
+      "id": 1014,
+      "uuid": "6adaba59c766c05fbd1390d1",
+      "name": "Dương Tiễn",
+      "lv": 1,
+      "star": 5,
+      "zhandouli": 1586,
+      "weightLv": 0,
+      "metaScore": 525051586
+    },
+    {
+      "id": 1014,
+      "uuid": "6adaba5cc766c05fbd1391b2",
+      "name": "Dương Tiễn",
+      "lv": 1,
+      "star": 5,
+      "zhandouli": 1586,
+      "weightLv": 0,
+      "metaScore": 525051586
+    },
+    {
+      "id": 3005,
+      "uuid": "6adaba5cc766c05fbd1391af",
+      "name": "Hạnh Tiên Lâm",
+      "lv": 1,
+      "star": 5,
+      "zhandouli": 1269,
+      "weightLv": 0,
+      "metaScore": 525051269
+    },
+    {
+      "id": 1012,
+      "uuid": "6adaba59c766c05fbd1390e7",
+      "name": "Cang Kim Tinh Quân",
+      "lv": 1,
+      "star": 5,
+      "zhandouli": 1687,
+      "weightLv": 0,
+      "metaScore": 25051687
+    },
+    {
+      "id": 3007,
+      "uuid": "6adaba5dc766c05fbd1391d5",
+      "name": "Tiểu Bạch Long",
+      "lv": 1,
+      "star": 5,
+      "zhandouli": 1346,
+      "weightLv": 0,
+      "metaScore": 25051346
+    },
+    {
+      "id": 3009,
+      "uuid": "6adaba5fc766c05fbd139242",
+      "name": "Sa Ngộ Tĩnh",
+      "lv": 1,
+      "star": 5,
+      "zhandouli": 1286,
+      "weightLv": 0,
+      "metaScore": 25051286
+    },
+    {
+      "id": 3003,
+      "uuid": "6adaba59c766c05fbd1390ab",
+      "name": "Kim Trì Trưởng Lão",
+      "lv": 1,
+      "star": 5,
+      "zhandouli": 1157,
+      "weightLv": 0,
+      "metaScore": 25051157
+    },
+    {
+      "id": 3004,
+      "uuid": "6adaba5dc766c05fbd1391e1",
+      "name": "Quảng Trí",
+      "lv": 1,
+      "star": 5,
+      "zhandouli": 1120,
+      "weightLv": 0,
+      "metaScore": 25051120
+    }
+  ],
+  "ownedTamThanh": [
+    "Dương Tiễn"
+  ],
+  "aiPhaseMsg": "AI Brain v7.1 Đang Tự Chơi Toàn Diện",
+  "aiLogs": [
+    "[Hệ thống] ⚡ D-AUTO PRO MAX v7.9 (Màn Dọc 9:16 + Login TK Chính) đã sẵn sàng!"
+  ],
+  "vault": [],
+  "brainTick": 0,
+  "lastPower": 0,
+  "stagnantTicks": 0,
+  "lastConnectedUpdate": 1792719473679,
+  "loginInStage": false,
+  "isConnect": true
+}
