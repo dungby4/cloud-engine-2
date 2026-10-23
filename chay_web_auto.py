@@ -59,6 +59,8 @@ DEFAULT_CONFIG = {
     "machine_id": "m1",
     "account_prefix": "htdvipa",
     "fresh_only": False,
+    "scan_direction": "auto",
+    "parity": "auto",
     "threads": 36,
     "port": 8088,
     "target_server": "latest",
@@ -121,6 +123,16 @@ def load_app_config():
       cfg["fresh_only"] = False
     elif a in ("--fresh-only", "--new-only"):
       cfg["fresh_only"] = True
+    elif a in ("--reverse", "--duoi-len", "--bottom-up"):
+      cfg["scan_direction"] = "reverse"
+    elif a in ("--forward", "--tren-xuong", "--top-down"):
+      cfg["scan_direction"] = "forward"
+    elif a in ("--even", "--chan"):
+      cfg["parity"] = "even"
+    elif a in ("--odd", "--le"):
+      cfg["parity"] = "odd"
+    elif a in ("--all-parity", "--tat-ca"):
+      cfg["parity"] = "all"
     elif a in ("--server-url", "--tailscale-url") and i + 1 < len(args):
       cfg["server_list_url"] = args[i + 1].strip()
     elif a == "--webhook" and i + 1 < len(args):
@@ -137,6 +149,10 @@ def load_app_config():
     cfg["account_prefix"] = os.environ["HTD_PREFIX"].strip()
   if os.environ.get("HTD_SERVER_LIST_URL"):
     cfg["server_list_url"] = os.environ["HTD_SERVER_LIST_URL"].strip()
+  if os.environ.get("HTD_SCAN_DIRECTION"):
+    cfg["scan_direction"] = os.environ["HTD_SCAN_DIRECTION"].strip()
+  if os.environ.get("HTD_PARITY"):
+    cfg["parity"] = os.environ["HTD_PARITY"].strip()
   if os.environ.get("HTD_PORT"):
     try:
       cfg["port"] = int(os.environ["HTD_PORT"])
@@ -2214,6 +2230,31 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
         break
 
   _save_reroll_files()
+  m_id = str(MACHINE_ID or "m1").lower()
+  cfg_dir = str(APP_CONFIG.get("scan_direction") or "auto").lower()
+  if cfg_dir in ("reverse", "bottom_up", "bottom"):
+    scan_direction = "reverse"
+  elif cfg_dir in ("forward", "top_down", "top"):
+    scan_direction = "forward"
+  else:
+    scan_direction = "reverse" if any(k in m_id for k in ("3", "4", "server", "vps")) else "forward"
+
+  cfg_par = str(APP_CONFIG.get("parity") or "auto").lower()
+  if cfg_par in ("even", "odd", "all"):
+    scan_parity = cfg_par
+  else:
+    if any(k in m_id for k in ("2", "4", "c")):
+      scan_parity = "odd"
+    elif any(k in m_id for k in ("1", "3", "b")):
+      scan_parity = "even"
+    else:
+      scan_parity = "all"
+
+  if not FRESH_ONLY and REUSABLE_POOL:
+    dir_desc = "từ DƯỚI LÊN (Reverse / Bottom-Up)" if scan_direction == "reverse" else "từ TRÊN XUỐNG (Forward / Top-Down)"
+    par_desc = "số CHẴN (Even)" if scan_parity == "even" else ("số LẺ (Odd)" if scan_parity == "odd" else "TẤT CẢ (All)")
+    print(f"📦 [Chế độ kho {len(REUSABLE_POOL)} nick] Máy '{MACHINE_ID}': Quét {dir_desc} • Phân vùng {par_desc}", flush=True)
+
   with REROLL_LOCK:
     if REROLL_STATE["running"]:
       return {"ok": False, "error": "Hệ thống đang chạy tạo nick & quay tướng rồi!"}
@@ -2266,18 +2307,19 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
         Ưu tiên 2: Đăng ký nick mới 100% qua bộ điều tốc 4.8s/nick để ăn trọn vẹn 27 code + 68 vé Thiên Mệnh."""
         target_sid_int = int(target_sid)
         if not FRESH_ONLY:
-          m_id = str(MACHINE_ID or "m1").lower()
-          m_num = 1 if "1" in m_id else (2 if "2" in m_id else 0)
+          pool_items = list(REUSABLE_POOL.items())
+          if scan_direction == "reverse":
+            pool_items.reverse()
           with REROLL_LOCK:
             if REROLL_STATE["stopRequested"]:
               return None
-            for u_k, item in REUSABLE_POOL.items():
+            for u_k, item in pool_items:
               if u_k not in IN_FLIGHT_USERS and int(item.get("sid") or 0) < target_sid_int and item.get("id"):
-                if m_num in (1, 2):
+                if scan_parity in ("even", "odd"):
                   num_part = int(re.sub(r"\D", "", u_k) or 0)
-                  if m_num == 1 and num_part % 2 != 0:
+                  if scan_parity == "even" and num_part % 2 != 0:
                     continue
-                  if m_num == 2 and num_part % 2 != 1:
+                  if scan_parity == "odd" and num_part % 2 != 1:
                     continue
                 IN_FLIGHT_USERS.add(u_k)
                 return {
