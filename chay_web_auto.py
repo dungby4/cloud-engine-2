@@ -782,24 +782,18 @@ def _letters_to_batch_idx(letters):
 
 
 def _normalize_base_prefix(prefix=None):
-  p = (prefix or ACCOUNT_PREFIX or "htd_vip").strip().strip("_")
+  p = (prefix or ACCOUNT_PREFIX or "htdvipa").strip().strip("_")
   if p.lower() == "tphtd":
-    p = "htd_vip"
-  if re.search(r"_[a-z]$", p, flags=re.I) and len(p.split("_")) > 2:
-    p = re.sub(r"_[a-z]$", "", p, flags=re.I)
-  return p or ACCOUNT_PREFIX or "htd_vip"
+    p = "htdvipa"
+  return p or ACCOUNT_PREFIX or "htdvipa"
 
 
 def _format_vip_username(base_prefix, seq_num):
-  """Định dạng <prefix>_a_001 -> <prefix>_a_999, hoặc <prefix>_001 nếu prefix dạng htdab, htdac..."""
+  """Định dạng chuẩn 4 chữ số: <prefix>_0001 -> <prefix>_9999 (hoàn toàn không có chữ cái như _a_).
+  Ví dụ: htdvipa_0001, htdvipa_0002, htdvipa_0003..."""
   base = _normalize_base_prefix(base_prefix)
   seq = max(1, int(seq_num))
-  if "_" not in base:
-    return f"{base}_{seq:03d}" if seq < 1000 else f"{base}_{seq}"
-  batch_idx = (seq - 1) // 999
-  num_in_batch = ((seq - 1) % 999) + 1
-  letters = _batch_idx_to_letters(batch_idx)
-  return f"{base}_{letters}_{num_in_batch:03d}"
+  return f"{base}_{seq:04d}"
 
 
 def _parse_vip_seq(username, base_prefix=None):
@@ -808,7 +802,7 @@ def _parse_vip_seq(username, base_prefix=None):
   m1 = re.match(rf"^{re.escape(base)}_(\d+)$", u_str, flags=re.I)
   if m1:
     return int(m1.group(1))
-  m2 = re.match(rf"^{re.escape(base)}_([a-z]+)_(\d{{3}})$", u_str, flags=re.I)
+  m2 = re.match(rf"^{re.escape(base)}_([a-z]+)_(\d+)$", u_str, flags=re.I)
   if m2:
     b_idx = _letters_to_batch_idx(m2.group(1))
     num = int(m2.group(2))
