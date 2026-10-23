@@ -1485,38 +1485,45 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
           if c_idx % 9 == 1 or c_idx == len(REROLL_GIFTCODES):
             set_step(f"Đang nhập 27 Giftcode ({c_idx}/{len(REROLL_GIFTCODES)})...")
           await ws.send(_pkt_msg(143, _pkt_str(code)))
-          await asyncio.sleep(0.22)
+          await asyncio.sleep(0.28)
+
+        # Chờ 1.0s để server Funtap hoàn tất tạo và phát toàn bộ thư giftcode vào hòm thư
+        await asyncio.sleep(1.0)
 
         set_step("Đang nhận Thư phúc lợi & Mở 250 Mảnh 5★ (5 tướng)...")
         await ws.send(_pkt_msg(64, b"\x01"))
         await ws.send(_pkt_msg(64, b"\x02"))
         await ws.send(_pkt_msg(61))
-        await asyncio.sleep(0.32)
+        await asyncio.sleep(0.40)
         await ws.send(_pkt_msg(61))
-        await asyncio.sleep(0.22)
+        await asyncio.sleep(0.30)
 
         # Mở 250 mảnh 5★: 100 mảnh 703 (2 tướng) + 100 mảnh 704 Core SSR (2 tướng) + 50 mảnh 1012 (1 tướng)
         for item_id, qty in [(703, 2), (703, 1), (704, 2), (704, 1), (1012, 1)]:
           await ws.send(_pkt_msg(87, struct.pack(">ii", item_id, qty)))
-          await asyncio.sleep(0.16)
-        await asyncio.sleep(0.18)
+          await asyncio.sleep(0.18)
+        await asyncio.sleep(0.20)
 
         # Nếu chưa mở đủ 5 tướng từ 250 mảnh (do server trễ), mở vét nhanh
         if len(heroes_5star) < 5:
           for retry_code in ("45THANTUONG", "DUONGTIEN", "NGOKHONG", "DAT100KDKT", "DKT50K", "DKT30K", "THANCAN555", "YCAN666"):
             await ws.send(_pkt_msg(143, _pkt_str(retry_code)))
-            await asyncio.sleep(0.22)
+            await asyncio.sleep(0.25)
           await ws.send(_pkt_msg(61))
-          await asyncio.sleep(0.28)
+          await asyncio.sleep(0.35)
           for item_id, qty in [(703, 1), (704, 2), (704, 1), (1012, 1)]:
             await ws.send(_pkt_msg(87, struct.pack(">ii", item_id, qty)))
-            await asyncio.sleep(0.16)
+            await asyncio.sleep(0.18)
+
+        # VÉT THƯ LẦN CUỐI TRƯỚC KHI QUAY: Đảm bảo 100% vé Thiên Mệnh + Tam Giới từ thư trễ đều đã vào túi
+        await ws.send(_pkt_msg(61))
+        await asyncio.sleep(0.35)
 
         # CHẾ ĐỘ MỞ ALL 100% (KHÔNG CHƠI XÁC SUẤT - MỌI NICK ĐỀU XẢ SẠCH 68 THIÊN MỆNH + 14 TAM GIỚI):
         # 1. Đã mở 250 mảnh 5★ (5 tướng). Riêng 11 mảnh lẻ giữ nguyên trong túi không ghép ép.
         # 2. Xả sạch 100% 68 lượt Thiên Mệnh (1 đơn + 6 lần x10 + 7 lần đơn)
         await ws.send(_pkt_msg(1320, b"\x01"))
-        await asyncio.sleep(0.08)
+        await asyncio.sleep(0.10)
 
         set_step(f"Đang xả 68 vé Thiên Mệnh (DT:{dt_count} | TNK:{tnk_count})...")
         await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 1, 1)))
@@ -1556,6 +1563,21 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
             break
           await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 1, 1)))
           await asyncio.sleep(0.38)
+
+        # LƯỚI BẢO HIỂM AN TOÀN TUYỆT ĐỐI (SAFETY NET):
+        # Nếu tổng tướng 5★ vẫn < 8 (chứng tỏ server trễ thư vé khiến đợt quay đầu hụt vé):
+        # Tự động nhận lại thư và quay bù toàn bộ 6x10 Thiên Mệnh + Tam Giới!
+        if len(heroes_5star) < 8 and not REROLL_STATE["stopRequested"]:
+          set_step(f"Bảo hiểm vé trễ: Đang nhận lại thư & quay bù vé (DT:{dt_count} | TNK:{tnk_count})...")
+          await ws.send(_pkt_msg(61))
+          await asyncio.sleep(0.50)
+          for _ in range(6):
+            if REROLL_STATE["stopRequested"]:
+              break
+            await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 2, 1)))
+            await asyncio.sleep(0.42)
+          await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 2, 1)))
+          await asyncio.sleep(0.44)
 
         await asyncio.sleep(0.24)
 
