@@ -2062,6 +2062,7 @@ async def _capture_winner_screenshot_async(res):
     try:
       from playwright.async_api import async_playwright
     except ImportError:
+      print("⚠️ [Screenshot Error] Thiếu thư viện Playwright trên máy này! Vui lòng chạy: pip install playwright && playwright install chromium", flush=True)
       return ""
     acc_name = str(res.get("account") or "nick")
     fid = str(res.get("funtapId") or "")
@@ -2079,6 +2080,17 @@ async def _capture_winner_screenshot_async(res):
           r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
       ]
       exe_path = next((p for p in chrome_paths if os.path.exists(p)), None)
+    elif not exe_path and (sys.platform.startswith("linux") or sys.platform == "darwin"):
+      linux_paths = [
+          "/usr/bin/google-chrome",
+          "/usr/bin/google-chrome-stable",
+          "/usr/bin/chromium",
+          "/usr/bin/chromium-browser",
+          "/snap/bin/chromium",
+          "/usr/bin/chrome",
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      ]
+      exe_path = next((p for p in linux_paths if os.path.exists(p)), None)
     try:
       os.makedirs(os.path.dirname(out_path), exist_ok=True)
       async with async_playwright() as p:
@@ -2089,7 +2101,10 @@ async def _capture_winner_screenshot_async(res):
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
                 "--mute-audio",
-                "--disable-gpu",
+                "--enable-webgl",
+                "--ignore-gpu-blocklist",
+                "--use-gl=angle",
+                "--use-angle=swiftshader",
                 "--disable-gpu-vsync",
             ],
         }

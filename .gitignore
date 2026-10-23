@@ -22,6 +22,7 @@ anh_nick_trung/
 # Logs & temp files
 *.log
 scratch/
+cdn_cache/
 temp_*
 reshoot_*
 *_fixed.png

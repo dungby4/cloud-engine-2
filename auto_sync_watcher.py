@@ -101,9 +101,9 @@ def main() -> None:
                     photo_b64 = None
                     photo_candidate = photos_dir / photo_name
                     if photo_name == "-" or not photo_candidate.exists():
-                        # Tool auto may take 3-8 seconds to capture screenshot
-                        print(f"   ⏳ Đang chờ tool lưu xong ảnh chụp cho {acc}...")
-                        for _ in range(12):
+                        # Tool auto may take 20-40 seconds to auto-run tutorial to Lv.5+ and capture screenshot
+                        print(f"   ⏳ Đang chờ tool chạy tân thủ Lv.5+ & lưu xong ảnh chụp cho {acc} (tối đa 45s)...")
+                        for _ in range(45):
                             time.sleep(1.0)
                             matches = list(photos_dir.glob(f"*{acc}*.png"))
                             if matches:
@@ -111,12 +111,16 @@ def main() -> None:
                                 photo_name = photo_candidate.name
                                 break
 
-                    if photo_candidate.exists() and photo_candidate.is_file():
-                        try:
-                            photo_b64 = base64.b64encode(photo_candidate.read_bytes()).decode("ascii")
-                            print(f"   📸 Đã đính kèm ảnh: {photo_candidate.name}")
-                        except Exception as e:
-                            print(f"   ⚠️ Lỗi đọc ảnh: {e}")
+                    if not (photo_candidate.exists() and photo_candidate.is_file()):
+                        print(f"   ⏳ Chưa có ảnh chụp cho {acc}, tạm hoãn để chờ tool lưu xong ảnh rồi mới bơm sang Bot...")
+                        continue
+
+                    try:
+                        photo_b64 = base64.b64encode(photo_candidate.read_bytes()).decode("ascii")
+                        print(f"   📸 Đã đính kèm ảnh: {photo_candidate.name}")
+                    except Exception as e:
+                        print(f"   ⚠️ Lỗi đọc ảnh: {e}")
+                        continue
 
                     # Send payload to Webhook
                     payload = {
