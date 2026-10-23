@@ -47,8 +47,9 @@ LOCAL_CONFIG_FILE = os.path.join(DIRECTORY, "config_local.json")
 
 DEFAULT_CONFIG = {
     "machine_id": "m1",
-    "account_prefix": "htd_vip",
-    "threads": 24,
+    "account_prefix": "htdvipa",
+    "fresh_only": True,
+    "threads": 36,
     "port": 8088,
     "target_server": "latest",
     "min_copies": 2,
@@ -123,7 +124,8 @@ def load_app_config():
 APP_CONFIG = load_app_config()
 PORT = int(APP_CONFIG.get("port") or 8088)
 MACHINE_ID = str(APP_CONFIG.get("machine_id") or "m1")
-ACCOUNT_PREFIX = str(APP_CONFIG.get("account_prefix") or "htd_vip")
+ACCOUNT_PREFIX = str(APP_CONFIG.get("account_prefix") or "htdvipa")
+FRESH_ONLY = bool(APP_CONFIG.get("fresh_only", True))
 PARALLEL_REROLL_WORKERS = int(APP_CONFIG.get("threads") or 36)
 
 CDN_BASE = "https://rescdnft105vn.ridvqqxa.com/13528/"
@@ -394,14 +396,36 @@ def funtap_login_authenticate(username, password):
   }
 
 
+_RECAPTCHA_V_CACHE = {"v": "NhfdZHzre16wrc2m6BxEdu7J", "ts": 0.0}
+
+
+def _get_live_recaptcha_v():
+  now = time.time()
+  if _RECAPTCHA_V_CACHE["v"] and (now - _RECAPTCHA_V_CACHE["ts"]) < 3600:
+    return _RECAPTCHA_V_CACHE["v"]
+  try:
+    url = "https://www.google.com/recaptcha/enterprise.js?render=6Lc7WFYsAAAAAIZ1uFlJpFgSlbcFFdGYHXgaVcVU"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36"})
+    js = urllib.request.urlopen(req, timeout=5).read().decode("utf-8")
+    m_v = re.search(r'releases/([^/]+)/', js)
+    if m_v:
+      _RECAPTCHA_V_CACHE["v"] = m_v.group(1)
+      _RECAPTCHA_V_CACHE["ts"] = now
+      return m_v.group(1)
+  except Exception:
+    pass
+  return _RECAPTCHA_V_CACHE["v"] or "NhfdZHzre16wrc2m6BxEdu7J"
+
+
 def _get_recaptcha_enterprise_token():
   """Generates a valid reCAPTCHA Enterprise v3 token via pure HTTP anchor->reload in ~0.2s."""
   try:
+    v = _get_live_recaptcha_v()
     site_key = "6Lc7WFYsAAAAAIZ1uFlJpFgSlbcFFdGYHXgaVcVU"
     co = "aHR0cHM6Ly9jb3JlLnNka21haW4uY29tOjQ0Mw.."
     anchor_url = (
         f"https://www.google.com/recaptcha/enterprise/anchor?ar=1&k={site_key}"
-        f"&co={co}&hl=vi&v=rPvs0Nyx3sANE-ZHUN-0nM85&size=invisible&cb={random.randint(100000, 999999)}"
+        f"&co={co}&hl=vi&v={v}&size=invisible&cb={random.randint(100000, 999999)}"
     )
     req = urllib.request.Request(
         anchor_url,
@@ -416,7 +440,7 @@ def _get_recaptcha_enterprise_token():
     c_tok = m.group(1)
     reload_url = f"https://www.google.com/recaptcha/enterprise/reload?k={site_key}"
     post_data = urllib.parse.urlencode({
-        "v": "rPvs0Nyx3sANE-ZHUN-0nM85",
+        "v": v,
         "reason": "q",
         "c": c_tok,
         "k": site_key,
@@ -426,6 +450,7 @@ def _get_recaptcha_enterprise_token():
         "chr": "[89,64,27]",
         "vh": "13599012192",
         "bg": "",
+        "sa": "submit",
     }).encode("utf-8")
     req2 = urllib.request.Request(
         reload_url,
@@ -505,14 +530,16 @@ def funtap_register_real_account(username, password="tphtd123"):
           }
       if "username" in res_html and ("tồn tại" in res_html or "taken" in res_html or "đã được sử dụng" in res_html or "err_username" in res_html):
         return {"ok": False, "taken": True, "error": "Tên tài khoản đã tồn tại trên Funtap"}
-      # Nếu lỗi do token/recaptcha tạm thời thì thử lại cùng tên tài khoản đó
+      if "recaptcha" in res_html.lower() or "xác minh" in res_html.lower():
+        time.sleep(1.0)
+        continue
       time.sleep(0.25)
     except urllib.error.HTTPError as he:
       if he.code == 429:
         try:
-          retry_after = int(he.headers.get("retry-after", 20))
+          retry_after = int(he.headers.get("retry-after", 25))
         except Exception:
-          retry_after = 20
+          retry_after = 25
         return {"ok": False, "rateLimited": True, "retryAfter": retry_after, "error": f"HTTP Error 429: Too Many Requests (retry-after: {retry_after}s)"}
       if attempt == 2:
         return {"ok": False, "error": str(he)}
@@ -521,7 +548,7 @@ def funtap_register_real_account(username, password="tphtd123"):
       if attempt == 2:
         return {"ok": False, "error": str(e)}
       time.sleep(0.25)
-  return {"ok": False, "taken": True, "error": "Không đăng ký được tên này"}
+  return {"ok": False, "recaptchaFailed": True, "error": "Chưa vượt được reCaptcha hoặc IP tạm thời bị giới hạn"}
 
 
 def build_all_server_list_response(origin_url):
@@ -1929,37 +1956,36 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
       last_reg_ts = [0.0]
 
       def _acquire_or_register_account(target_sid):
-        """Ưu tiên 1: Nếu có server mới (sid > phôi cũ) -> Bốc ngay phôi nick cũ chưa quay ở target_sid (0ms).
-        Ưu tiên 2: Nếu chưa có server mới -> Nhảy thẳng vào số thứ tự đang dở dang (htd_vip_a_...) chạy tiếp ngay lập tức."""
+        """Ưu tiên 1: Nếu không ép FRESH_ONLY và có phôi cũ chưa từng cày ở target_sid -> bốc ngay (0ms).
+        Ưu tiên 2: Đăng ký nick mới 100% qua bộ điều tốc 4.8s/nick để ăn trọn vẹn 27 code + 68 vé Thiên Mệnh."""
         target_sid_int = int(target_sid)
-        with REROLL_LOCK:
-          if REROLL_STATE["stopRequested"]:
-            return None
-          # Nếu có phôi cũ chưa từng cày ở target_sid -> bốc ngay
-          for u_k, item in REUSABLE_POOL.items():
-            if u_k not in IN_FLIGHT_USERS and int(item.get("sid") or 0) < target_sid_int and item.get("id"):
-              IN_FLIGHT_USERS.add(u_k)
-              return {
-                  "ok": True,
-                  "username": item["u"],
-                  "password": item["p"],
-                  "accountId": item["id"],
-                  "accessToken": "r",
-                  "reused": True,
-                  "prevSid": int(item.get("sid") or 0),
-              }
+        if not FRESH_ONLY:
+          with REROLL_LOCK:
+            if REROLL_STATE["stopRequested"]:
+              return None
+            for u_k, item in REUSABLE_POOL.items():
+              if u_k not in IN_FLIGHT_USERS and int(item.get("sid") or 0) < target_sid_int and item.get("id"):
+                IN_FLIGHT_USERS.add(u_k)
+                return {
+                    "ok": True,
+                    "username": item["u"],
+                    "password": item["p"],
+                    "accountId": item["id"],
+                    "accessToken": "r",
+                    "reused": True,
+                    "prevSid": int(item.get("sid") or 0),
+                }
 
-        # Nếu chưa có server mới -> Đăng ký nick mới tiếp tục con số đang dở dang mà không mất thời gian dò lại kho cũ
+        # Đăng ký nick mới 100% với bộ điều tốc an toàn 4.8s (tối đa 12 req/phút, luôn dưới giới hạn 15 của Funtap)
         while True:
           with REROLL_LOCK:
             if REROLL_STATE["stopRequested"]:
               return None
           with reg_lock:
-            # Giãn cách tạo nick an toàn 5.0s giữa các luồng để chống triệt để hạn mức 15 req/phút (HTTP 429) của Funtap
             now_t = time.time()
             diff = now_t - last_reg_ts[0]
-            if diff < 5.0:
-              time.sleep(5.0 - diff)
+            if diff < 4.8:
+              time.sleep(4.8 - diff)
             last_reg_ts[0] = time.time()
 
             with num_lock:
@@ -1980,15 +2006,17 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                   reg["reused"] = False
                   return reg
             elif reg.get("rateLimited"):
-              wait_sec = int(reg.get("retryAfter") or 20) + 2
+              wait_sec = int(reg.get("retryAfter") or 25) + 3
               print(f"⚠️ [Funtap 429 Rate Limit] IP bị giới hạn (15 req/phút). Đang nghỉ {wait_sec}s theo đúng Retry-After để hồi phục hoàn toàn...", flush=True)
               time.sleep(wait_sec)
               last_reg_ts[0] = time.time()
             elif reg.get("taken"):
-              # Tên đã tồn tại trên Funtap, nhảy bước 20 số để nhanh chóng vượt qua dải số nick cũ
               with num_lock:
-                num_cursor[0] += 20
+                num_cursor[0] += 1
               time.sleep(0.1)
+            elif reg.get("recaptchaFailed"):
+              print(f"⚠️ [Funtap reCAPTCHA] Đang chờ 5s để giải phóng hạn mức IP...", flush=True)
+              time.sleep(5.0)
             else:
               err_code = reg.get("error")
               print(f"⚠️ [Funtap Error] Chưa thể đăng ký {cand_name} ({err_code}). Nghỉ 3s thử lại...", flush=True)
