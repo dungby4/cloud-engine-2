@@ -1,7 +1,7 @@
 {
   "machine_id": "m1",
   "account_prefix": "htdvipa",
-  "fresh_only": true,
+  "fresh_only": false,
   "threads": 36,
   "port": 8088,
   "target_server": "latest",

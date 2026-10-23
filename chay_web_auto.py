@@ -57,7 +57,7 @@ LOCAL_CONFIG_FILE = os.path.join(DIRECTORY, "config_local.json")
 DEFAULT_CONFIG = {
     "machine_id": "m1",
     "account_prefix": "htdvipa",
-    "fresh_only": True,
+    "fresh_only": False,
     "threads": 36,
     "port": 8088,
     "target_server": "latest",
@@ -115,6 +115,10 @@ def load_app_config():
         cfg["threads"] = int(args[i + 1])
       except ValueError:
         pass
+    elif a in ("--reuse", "--quet-kho", "--no-fresh", "--kho"):
+      cfg["fresh_only"] = False
+    elif a in ("--fresh-only", "--new-only"):
+      cfg["fresh_only"] = True
     elif a == "--webhook" and i + 1 < len(args):
       cfg.setdefault("sales_bot", {})["webhook_url"] = args[i + 1].strip()
       cfg["sales_bot"]["enabled"] = True
@@ -2192,11 +2196,19 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
         Ưu tiên 2: Đăng ký nick mới 100% qua bộ điều tốc 4.8s/nick để ăn trọn vẹn 27 code + 68 vé Thiên Mệnh."""
         target_sid_int = int(target_sid)
         if not FRESH_ONLY:
+          m_id = str(MACHINE_ID or "m1").lower()
+          m_num = 1 if "1" in m_id else (2 if "2" in m_id else 0)
           with REROLL_LOCK:
             if REROLL_STATE["stopRequested"]:
               return None
             for u_k, item in REUSABLE_POOL.items():
               if u_k not in IN_FLIGHT_USERS and int(item.get("sid") or 0) < target_sid_int and item.get("id"):
+                if m_num in (1, 2):
+                  num_part = int(re.sub(r"\D", "", u_k) or 0)
+                  if m_num == 1 and num_part % 2 != 0:
+                    continue
+                  if m_num == 2 and num_part % 2 != 1:
+                    continue
                 IN_FLIGHT_USERS.add(u_k)
                 return {
                     "ok": True,
