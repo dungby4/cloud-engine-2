@@ -6,6 +6,11 @@
   "port": 8088,
   "target_server": "latest",
   "min_copies": 2,
+  "gpm": {
+    "enabled": true,
+    "api_base": "http://127.0.0.1:9495",
+    "profile_id": "c9d4c0e0-299e-430b-a30f-4c6f56546fbe"
+  },
   "sales_bot": {
     "enabled": true,
     "webhook_url": "http://100.94.81.101:8082/api/v1/inventory/hactaydu-webhook",

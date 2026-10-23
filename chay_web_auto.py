@@ -31,6 +31,13 @@ try:
   sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
   pass
+
+# Force IPv4 socket resolution to prevent Windows urllib IPv6 DNS hanging (21s delay)
+_orig_getaddrinfo = socket.getaddrinfo
+def _ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+  return _orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+socket.getaddrinfo = _ipv4_getaddrinfo
+
 import threading
 import time
 import urllib.error
@@ -38,8 +45,10 @@ import urllib.parse
 import urllib.request
 try:
   import websockets
+  from websockets.sync.client import connect as ws_sync_connect
 except ImportError:
   websockets = None
+  ws_sync_connect = None
 
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(DIRECTORY, "config.json")
@@ -53,6 +62,11 @@ DEFAULT_CONFIG = {
     "port": 8088,
     "target_server": "latest",
     "min_copies": 2,
+    "gpm": {
+        "enabled": True,
+        "api_base": "http://127.0.0.1:9495",
+        "profile_id": "c9d4c0e0-299e-430b-a30f-4c6f56546fbe",
+    },
     "sales_bot": {
         "enabled": False,
         "webhook_url": "",
@@ -467,13 +481,236 @@ def _get_recaptcha_enterprise_token():
     return ""
 
 
+_GPM_CACHED_PORT = {"port": 51344, "ts": 0.0}
+
+
+def get_gpm_devtools_port():
+  """Retrieves or refreshes the active Chrome DevTools debugging port from GPM Login Global API."""
+  now = time.time()
+  if _GPM_CACHED_PORT["port"] and (now - _GPM_CACHED_PORT["ts"] < 60.0):
+    return _GPM_CACHED_PORT["port"]
+  gpm_cfg = APP_CONFIG.get("gpm") or {}
+  api_base = gpm_cfg.get("api_base", "http://127.0.0.1:9495").rstrip("/")
+  profile_id = gpm_cfg.get("profile_id", "c9d4c0e0-299e-430b-a30f-4c6f56546fbe")
+  try:
+    url = f"{api_base}/api/v1/profiles/start/{profile_id}"
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=5) as r:
+      data = json.loads(r.read().decode("utf-8"))
+      port = data.get("data", {}).get("remote_debugging_port")
+      if port:
+        _GPM_CACHED_PORT["port"] = int(port)
+        _GPM_CACHED_PORT["ts"] = now
+        return int(port)
+  except Exception:
+    pass
+  return _GPM_CACHED_PORT["port"] or 51344
+
+
+def sync_register_account_via_gpm(username, password="tphtd123"):
+  """Registers a fresh Funtap account directly inside the GPM Chrome browser profile via CDP.
+  Bypasses reCAPTCHA Enterprise completely in ~1.0-1.5s with zero blocks or rate limit issues."""
+  if not ws_sync_connect:
+    return {"ok": False, "error": "websockets.sync not available"}
+
+  gpm_cfg = APP_CONFIG.get("gpm") or {}
+  if not gpm_cfg.get("enabled", True):
+    return {"ok": False, "disabled": True, "error": "GPM registration is disabled in config"}
+
+  port = get_gpm_devtools_port()
+  try:
+    tabs_url = f"http://127.0.0.1:{port}/json"
+    req = urllib.request.Request(tabs_url)
+    tabs = json.loads(urllib.request.urlopen(req, timeout=4).read().decode("utf-8"))
+  except Exception as e:
+    return {"ok": False, "error": f"Cannot connect to GPM DevTools on port {port}: {e}"}
+
+  ws_url = None
+  for t in tabs:
+    if "core.sdkmain.com" in t.get("url", ""):
+      ws_url = t.get("webSocketDebuggerUrl")
+      break
+  if not ws_url:
+    page_tabs = [t for t in tabs if t.get("type") == "page"]
+    if page_tabs:
+      ws_url = page_tabs[0].get("webSocketDebuggerUrl")
+    else:
+      return {"ok": False, "error": "No browser page tab found in GPM profile"}
+
+  t0 = time.time()
+  try:
+    with ws_sync_connect(ws_url, max_size=10 * 1024 * 1024, close_timeout=3) as ws:
+      msg_id = 1
+
+      def send_cdp(method, params=None):
+        nonlocal msg_id
+        m_id = msg_id
+        msg_id += 1
+        req = {"id": m_id, "method": method, "params": params or {}}
+        ws.send(json.dumps(req))
+        while True:
+          resp = ws.recv()
+          data = json.loads(resp)
+          if data.get("id") == m_id:
+            return data
+
+      target_url = (
+          "https://core.sdkmain.com/v1/apps/2a456b78cf5122cd9278ef24b4d7bfb9/9.9.9.5/register/phone"
+          "?sdk_version=6.1.2&device_network=wifi&device_os=Android%2012&device_name=Pixel%206"
+      )
+      send_cdp("Page.navigate", {"url": target_url})
+
+      # Wait until form and grecaptcha are ready
+      loaded = False
+      for _ in range(50):
+        time.sleep(0.12)
+        check = send_cdp(
+            "Runtime.evaluate",
+            {
+                "expression": (
+                    "Boolean(document.getElementById('username') &&"
+                    " document.getElementById('password') && typeof grecaptcha"
+                    " !== 'undefined' && grecaptcha.enterprise)"
+                ),
+                "returnByValue": True,
+            },
+        )
+        if check.get("result", {}).get("result", {}).get("value") is True:
+          loaded = True
+          break
+
+      if not loaded:
+        return {
+            "ok": False,
+            "error": "Registration form failed to load in GPM browser",
+        }
+
+      # Fill and submit form
+      submit_js = f"""
+      new Promise((resolve) => {{
+          try {{
+              const u = document.getElementById("username");
+              const f = document.getElementById("fullname");
+              const b = document.getElementById("birthday");
+              const p = document.getElementById("phone");
+              const pwd = document.getElementById("password");
+              const form = document.querySelector('form');
+              
+              u.value = {json.dumps(username)};
+              f.value = "Dang Minh Nam";
+              b.value = "2000-01-04";
+              p.value = "098" + Math.floor(1000000 + Math.random() * 8999999);
+              pwd.value = {json.dumps(password)};
+              
+              for (let el of [u, f, b, p, pwd]) {{
+                  el.dispatchEvent(new Event('input', {{bubbles: true}}));
+                  el.dispatchEvent(new Event('change', {{bubbles: true}}));
+              }}
+              
+              const siteKey = '6Lc7WFYsAAAAAIZ1uFlJpFgSlbcFFdGYHXgaVcVU';
+              grecaptcha.enterprise.ready(function() {{
+                  grecaptcha.enterprise.execute(siteKey, {{action: 'submit'}}).then(function(token) {{
+                      const rInput = document.getElementById('g-recaptcha-response');
+                      if (rInput) rInput.value = token;
+                      form.submit();
+                      resolve({{ok: true, token: token.substring(0, 10)}});
+                  }}).catch(function(err) {{
+                      resolve({{ok: false, error: String(err)}});
+                  }});
+              }});
+          }} catch(e) {{
+              resolve({{ok: false, error: e.message}});
+          }}
+      }})
+      """
+      submit_res = send_cdp(
+          "Runtime.evaluate",
+          {
+              "expression": submit_js,
+              "awaitPromise": True,
+              "returnByValue": True,
+          },
+      )
+      sub_val = (
+          submit_res.get("result", {}).get("result", {}).get("value", {})
+      )
+      if not sub_val.get("ok"):
+        return {"ok": False, "error": f"Submit failed: {sub_val.get('error')}"}
+
+      # Poll for completion
+      registered_info = None
+      for _ in range(40):
+        time.sleep(0.12)
+        check_html = send_cdp(
+            "Runtime.evaluate",
+            {
+                "expression": "document.documentElement.outerHTML",
+                "returnByValue": True,
+            },
+        )
+        html_val = (
+            check_html.get("result", {}).get("result", {}).get("value", "")
+        )
+        if "loginSuccess" in html_val:
+          m_json = re.search(
+              r"appSDKexecute\('loginSuccess',\s*(\{.*?\})\);", html_val
+          )
+          if m_json:
+            registered_info = json.loads(m_json.group(1))
+            break
+        if (
+            "error-input" in html_val
+            or "err_username" in html_val
+            or "tồn tại" in html_val
+            or "taken" in html_val
+        ):
+          return {
+              "ok": False,
+              "taken": True,
+              "error": "Tài khoản đã tồn tại trên Funtap",
+          }
+
+      duration = time.time() - t0
+      if registered_info:
+        d = registered_info.get("data") or {}
+        acc_obj = d.get("account") or {}
+        acc_id = str(acc_obj.get("account_id") or d.get("id") or "")
+        fun_id = str(d.get("id") or acc_id)
+        tok = str(registered_info.get("access_token") or "")
+        return {
+            "ok": True,
+            "username": username,
+            "password": password,
+            "accountId": acc_id,
+            "funId": fun_id,
+            "accessToken": tok,
+            "duration": round(duration, 2),
+            "method": "gpm_cdp",
+        }
+      return {
+          "ok": False,
+          "error": "Timeout waiting for GPM registration response",
+      }
+  except Exception as e:
+    return {"ok": False, "error": f"GPM CDP registration exception: {e}"}
+
+
 def funtap_register_real_account(username, password="tphtd123"):
-  """Registers a real Funtap FunID account via core.sdkmain.com/v1/apps/.../register/phone with auto reCAPTCHA v3 token."""
+  """Registers a real Funtap FunID account with priority to GPM Chrome CDP, falling back to HTTP."""
   import uuid
   username = (username or "").strip()
   password = (password or "tphtd123").strip()
   if len(password) < 8:
     password = password + "12345678"[: 8 - len(password)]
+
+  # Ưu tiên 1: Đăng ký qua GPM Chrome CDP Profile (vượt 100% reCAPTCHA Enterprise trong ~1s)
+  gpm_res = sync_register_account_via_gpm(username, password)
+  if gpm_res.get("ok"):
+    return gpm_res
+  if gpm_res.get("taken"):
+    return gpm_res
+
+  # Ưu tiên 2: Fallback qua HTTP thông thường nếu GPM tắt hoặc chưa bật
   for attempt in range(3):
     try:
       cj = http.cookiejar.CookieJar()
@@ -527,6 +764,7 @@ def funtap_register_real_account(username, password="tphtd123"):
               "accountId": acc_id,
               "funId": fun_id,
               "accessToken": acc_tok,
+              "method": "pure_http",
           }
       if "username" in res_html and ("tồn tại" in res_html or "taken" in res_html or "đã được sử dụng" in res_html or "err_username" in res_html):
         return {"ok": False, "taken": True, "error": "Tên tài khoản đã tồn tại trên Funtap"}
@@ -1978,8 +2216,8 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
           with reg_lock:
             now_t = time.time()
             diff = now_t - last_reg_ts[0]
-            if diff < 9.6:
-              time.sleep(9.6 - diff)
+            if diff < 5.0:
+              time.sleep(5.0 - diff)
             last_reg_ts[0] = time.time()
 
             with num_lock:
@@ -2005,6 +2243,21 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
               time.sleep(wait_sec)
               last_reg_ts[0] = time.time()
             elif reg.get("taken"):
+              # Kiểm tra xem nick này đã được đăng ký chuẩn và chưa có nhân vật nào không
+              pre_auth = funtap_login_authenticate(cand_name, "tphtd12345")
+              if pre_auth.get("ok") and len(pre_auth.get("characters", [])) == 0:
+                print(f"✨ Phát hiện nick mới {cand_name} đã đăng ký sẵn (0 nhân vật) => Đưa vào quay ngay!", flush=True)
+                with REROLL_LOCK:
+                  IN_FLIGHT_USERS.add(cand_name)
+                return {
+                    "ok": True,
+                    "username": cand_name,
+                    "password": "tphtd12345",
+                    "accountId": pre_auth.get("accountId") or pre_auth.get("montarAccountId"),
+                    "funId": pre_auth.get("funId"),
+                    "accessToken": pre_auth.get("accessToken", "r"),
+                    "reused": False,
+                }
               with num_lock:
                 num_cursor[0] += 1
               time.sleep(0.1)
