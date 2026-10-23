@@ -138,9 +138,16 @@ COMMAND_QUEUE = []
 
 # Complete Official Live Server List across all Clusters of Hắc Tây Du Funtap (Auto-synced from Funtap API)
 ALL_SERVERS_DATA = [
+    # Cụm 8: Nữ Nhi Quốc (S71 -> S80)
+    {"sid": "610072", "id": 72, "name": "[S72 Mới Nhất] Nữ Nhi Quốc-S2", "server": "wss://wss-funtap-xy.xinliugame.net:9098/", "status": "1", "recommend": 1, "cluster": "Nữ Nhi Quốc"},
+    {"sid": "610071", "id": 71, "name": "[S71] Nữ Nhi Quốc-S1", "server": "wss://wss-funtap-xy.xinliugame.net:9097/", "status": "2", "recommend": 0, "cluster": "Nữ Nhi Quốc"},
+    # Cụm 7: Xa Trì Quốc (S61 -> S70)
+    {"sid": "610070", "id": 70, "name": "[S70] Xa Trì Quốc-S10", "server": "wss://wss-funtap-xy.xinliugame.net:9096/", "status": "2", "recommend": 0, "cluster": "Xa Trì Quốc"},
+    {"sid": "610069", "id": 69, "name": "[S69] Xa Trì Quốc-S9", "server": "wss://wss-funtap-xy.xinliugame.net:9095/", "status": "2", "recommend": 0, "cluster": "Xa Trì Quốc"},
+    {"sid": "610068", "id": 68, "name": "[S68] Xa Trì Quốc-S8", "server": "wss://wss-funtap-xy.xinliugame.net:9094/", "status": "2", "recommend": 0, "cluster": "Xa Trì Quốc"},
     # Cụm 5: Lưu Sa Hà (S41 -> S48+)
-    {"sid": "610048", "id": 48, "name": "[S48 Mới Nhất] Lưu Sa Hà-S8", "server": "wss://wss-funtap-xy.xinliugame.net:9074/", "status": "1", "recommend": 1, "cluster": "Lưu Sa Hà"},
-    {"sid": "610047", "id": 47, "name": "[S47] Lưu Sa Hà-S7", "server": "wss://wss-funtap-xy.xinliugame.net:9073/", "status": "2", "recommend": 1, "cluster": "Lưu Sa Hà"},
+    {"sid": "610048", "id": 48, "name": "[S48] Lưu Sa Hà-S8", "server": "wss://wss-funtap-xy.xinliugame.net:9074/", "status": "2", "recommend": 0, "cluster": "Lưu Sa Hà"},
+    {"sid": "610047", "id": 47, "name": "[S47] Lưu Sa Hà-S7", "server": "wss://wss-funtap-xy.xinliugame.net:9073/", "status": "2", "recommend": 0, "cluster": "Lưu Sa Hà"},
     {"sid": "610046", "id": 46, "name": "[S46] Lưu Sa Hà-S6", "server": "wss://wss-funtap-xy.xinliugame.net:9072/", "status": "2", "recommend": 0, "cluster": "Lưu Sa Hà"},
     {"sid": "610045", "id": 45, "name": "[S45] Lưu Sa Hà-S5", "server": "wss://wss-funtap-xy.xinliugame.net:9071/", "status": "2", "recommend": 0, "cluster": "Lưu Sa Hà"},
     {"sid": "610044", "id": 44, "name": "[S44] Lưu Sa Hà-S4", "server": "wss://wss-funtap-xy.xinliugame.net:9070/", "status": "2", "recommend": 0, "cluster": "Lưu Sa Hà"},
@@ -1283,74 +1290,88 @@ _save_reroll_files()
 
 def fetch_latest_server_live():
   """Fetches the live server list directly from Funtap API and returns the newest server (highest sid/id)."""
-  try:
-    url = "https://funtap-xy.ridvqqxa.com/game/getServerList2.php?lst=all&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios"
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=6) as resp:
-      raw = resp.read().decode("utf-8", errors="ignore")
-    arr = json.loads(raw)
-    live_map = {}
-    for existing in ALL_SERVERS_DATA:
-      sid_e = str(existing.get("sid") or "")
-      if sid_e:
-        live_map[sid_e] = dict(existing)
-    if isinstance(arr, list):
-      for grp in arr:
-        for s in grp.get("all") or []:
-          sid_str = str(s.get("sid") or "")
-          if sid_str:
-            live_map[sid_str] = s
-    if live_map:
-      max_sid_int = max(int(k) for k in live_map.keys() if k.isdigit())
-      # Điền đầy đủ các server trung gian từ 610041 -> max_sid_int nếu API chỉ trả về cụm mới nhất
-      for sid_num in range(610041, max_sid_int + 1):
-        s_key = str(sid_num)
-        if s_key not in live_map:
-          srv_idx = sid_num - 610000
-          if srv_idx <= 50:
-            c_name = f"Lưu Sa Hà-S{srv_idx - 40}"
-          elif srv_idx <= 60:
-            c_name = f"Ô Kê Quốc-S{srv_idx - 50}"
+  urls = [
+      "https://funtap-xy.ridvqqxa.com/game/getServerList2.php?lst=new&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
+      "https://funtap-xy.ridvqqxa.com/game/getServerList2.php?lst=all&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
+      "http://funtap-xy.ridvqqxa.com/game/getServerList2.php?lst=new&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
+  ]
+  ctx = ssl._create_unverified_context()
+  last_err = None
+
+  for url in urls:
+    try:
+      req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
+      with urllib.request.urlopen(req, timeout=8, context=ctx) as resp:
+        raw = resp.read().decode("utf-8", errors="ignore")
+      arr = json.loads(raw)
+      live_map = {}
+      for existing in ALL_SERVERS_DATA:
+        sid_e = str(existing.get("sid") or "")
+        if sid_e:
+          live_map[sid_e] = dict(existing)
+      if isinstance(arr, list):
+        for grp in arr:
+          for s in grp.get("all") or []:
+            sid_str = str(s.get("sid") or "")
+            if sid_str:
+              live_map[sid_str] = s
+      if live_map:
+        max_sid_int = max(int(k) for k in live_map.keys() if k.isdigit())
+        # Điền đầy đủ các server trung gian từ 610041 -> max_sid_int nếu API chỉ trả về cụm mới nhất
+        for sid_num in range(610041, max_sid_int + 1):
+          s_key = str(sid_num)
+          if s_key not in live_map:
+            srv_idx = sid_num - 610000
+            if srv_idx <= 50:
+              c_name = f"Lưu Sa Hà-S{srv_idx - 40}"
+            elif srv_idx <= 60:
+              c_name = f"Ô Kê Quốc-S{srv_idx - 50}"
+            elif srv_idx <= 70:
+              c_name = f"Xa Trì Quốc-S{srv_idx - 60}"
+            else:
+              c_name = f"Nữ Nhi Quốc-S{srv_idx - 70}"
+            live_map[s_key] = {
+                "sid": s_key,
+                "id": srv_idx,
+                "name": c_name,
+                "server": f"wss://wss-funtap-xy.xinliugame.net:{srv_idx + 9026}/",
+                "status": "2",
+                "recommend": 0,
+            }
+        sorted_sids = sorted(live_map.keys(), key=lambda x: int(x) if x.isdigit() else 0, reverse=True)
+        new_list = []
+        max_sid = sorted_sids[0]
+        for sid_str in sorted_sids:
+          item = live_map[sid_str]
+          srv_id = int(item.get("id") or (int(sid_str) - 610000 if sid_str.isdigit() else 0))
+          raw_name = str(item.get("name") or f"Server S{srv_id}")
+          clean_base = re.sub(r"^\[S\d+[^\]]*\]\s*", "", raw_name).strip()
+          if sid_str == max_sid:
+            disp_name = f"[S{srv_id} Mới Nhất] {clean_base}"
+          elif srv_id >= 39:
+            disp_name = f"[S{srv_id}] {clean_base}"
           else:
-            c_name = f"Xa Trì Quốc-S{srv_idx - 60}"
-          live_map[s_key] = {
-              "sid": s_key,
-              "id": srv_idx,
-              "name": c_name,
-              "server": f"wss://wss-funtap-xy.xinliugame.net:{srv_idx + 9026}/",
-              "status": "2",
-              "recommend": 0,
-          }
-      sorted_sids = sorted(live_map.keys(), key=lambda x: int(x) if x.isdigit() else 0, reverse=True)
-      new_list = []
-      max_sid = sorted_sids[0]
-      for sid_str in sorted_sids:
-        item = live_map[sid_str]
-        srv_id = int(item.get("id") or (int(sid_str) - 610000 if sid_str.isdigit() else 0))
-        raw_name = str(item.get("name") or f"Server S{srv_id}")
-        clean_base = re.sub(r"^\[S\d+[^\]]*\]\s*", "", raw_name).strip()
-        if sid_str == max_sid:
-          disp_name = f"[S{srv_id} Mới Nhất] {clean_base}"
-        elif srv_id >= 39:
-          disp_name = f"[S{srv_id}] {clean_base}"
-        else:
-          disp_name = clean_base
-        cluster_name = clean_base.split("-")[0].strip() if "-" in clean_base else "Lưu Sa Hà"
-        ws_srv = str(item.get("server") or f"wss://wss-funtap-xy.xinliugame.net:{srv_id + 9026}/").replace("\\/", "/")
-        new_list.append({
-            "sid": sid_str,
-            "id": srv_id,
-            "name": disp_name,
-            "server": ws_srv,
-            "status": str(item.get("status") or "2"),
-            "recommend": int(item.get("recommend") or (1 if sid_str == max_sid else 0)),
-            "cluster": cluster_name,
-        })
-      if new_list:
-        ALL_SERVERS_DATA[:] = new_list
-        return ALL_SERVERS_DATA[0]
-  except Exception:
-    pass
+            disp_name = clean_base
+          cluster_name = clean_base.split("-")[0].strip() if "-" in clean_base else "Nữ Nhi Quốc"
+          ws_srv = str(item.get("server") or f"wss://wss-funtap-xy.xinliugame.net:{srv_id + 9026}/").replace("\\/", "/")
+          new_list.append({
+              "sid": sid_str,
+              "id": srv_id,
+              "name": disp_name,
+              "server": ws_srv,
+              "status": str(item.get("status") or "2"),
+              "recommend": int(item.get("recommend") or (1 if sid_str == max_sid else 0)),
+              "cluster": cluster_name,
+          })
+        if new_list:
+          ALL_SERVERS_DATA[:] = new_list
+          return ALL_SERVERS_DATA[0]
+    except Exception as e:
+      last_err = e
+      continue
+
+  if last_err:
+    print(f"⚠️ [Mạng API Funtap] Không thể tải danh sách server mới: {last_err}. Dùng server mặc định: {ALL_SERVERS_DATA[0]['name']}", flush=True)
   return ALL_SERVERS_DATA[0]
 
 
