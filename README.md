@@ -61,6 +61,8 @@ Tool auto reroll và web client tự động cho game Hắc Tây Du (Funtap), h�
 
 ## ⚙️ 3. CẤU HÌNH HỆ THỐNG (`config.json` & `config_local.json`)
 
+Nếu các nick nhận giftcode không đều, xem [hướng dẫn kiểm tra giftcode](docs/giftcode-troubleshooting.md).
+
 Mỗi máy có thể cấu hình riêng thông qua file `config_local.json` (ưu tiên cao nhất, không bị git đè) hoặc file chung `config.json`:
 
 ```json

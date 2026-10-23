@@ -46,6 +46,7 @@ import urllib.request
 try:
   import websockets
   from websockets.sync.client import connect as ws_sync_connect
+  from giftcode_claims import GiftcodeClaims
 except ImportError:
   websockets = None
   ws_sync_connect = None
@@ -62,6 +63,7 @@ DEFAULT_CONFIG = {
     "port": 8088,
     "target_server": "latest",
     "min_copies": 2,
+    "server_list_url": "http://100.68.248.22:8088/api/server_list",
     "gpm": {
         "enabled": True,
         "api_base": "http://127.0.0.1:9495",
@@ -119,6 +121,8 @@ def load_app_config():
       cfg["fresh_only"] = False
     elif a in ("--fresh-only", "--new-only"):
       cfg["fresh_only"] = True
+    elif a in ("--server-url", "--tailscale-url") and i + 1 < len(args):
+      cfg["server_list_url"] = args[i + 1].strip()
     elif a == "--webhook" and i + 1 < len(args):
       cfg.setdefault("sales_bot", {})["webhook_url"] = args[i + 1].strip()
       cfg["sales_bot"]["enabled"] = True
@@ -131,6 +135,8 @@ def load_app_config():
       cfg["account_prefix"] = f"htd_{cfg['machine_id']}"
   if os.environ.get("HTD_PREFIX"):
     cfg["account_prefix"] = os.environ["HTD_PREFIX"].strip()
+  if os.environ.get("HTD_SERVER_LIST_URL"):
+    cfg["server_list_url"] = os.environ["HTD_SERVER_LIST_URL"].strip()
   if os.environ.get("HTD_PORT"):
     try:
       cfg["port"] = int(os.environ["HTD_PORT"])
@@ -1569,19 +1575,108 @@ _save_reroll_files()
 
 
 def fetch_latest_server_live():
-  """Fetches the live server list directly from Funtap API and returns the newest server (highest sid/id)."""
-  urls = [
-      "http://100.68.248.22:8088/api/server_list",
-      "https://152-69-209-107.sslip.io/api/server_list",
+  """Lấy danh sách server mới nhất trực tiếp từ API Funtap.
+  Nếu gọi đến Funtap lỗi (hoặc rỗng/chặn), tự động fallback gọi qua Tailscale (máy ở nhà / localhost list server).
+  """
+  funtap_urls = [
       "https://funtap-xy.xinliugame.net/game/getServerList2.php?lst=new&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
       "https://funtap-xy.xinliugame.net/game/getServerList2.php?lst=all&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
       "https://funtap-xy.ridvqqxa.com/game/getServerList2.php?lst=new&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
       "https://funtap-xy.ridvqqxa.com/game/getServerList2.php?lst=all&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
   ]
-  ctx = ssl._create_unverified_context()
-  last_err = None
 
-  for url in urls:
+  # Tailscale / máy ở nhà (localhost server_list trên máy truong-home)
+  tailscale_home_url = (
+      APP_CONFIG.get("server_list_url")
+      or APP_CONFIG.get("tailscale_server_url")
+      or "http://100.68.248.22:8088/api/server_list"
+  )
+  tailscale_urls = [
+      tailscale_home_url,
+      f"http://127.0.0.1:{PORT}/api/server_list",
+      "https://152-69-209-107.sslip.io/api/server_list",
+  ]
+  seen_ts = set()
+  unique_tailscale_urls = []
+  for u in tailscale_urls:
+    if u and u not in seen_ts:
+      seen_ts.add(u)
+      unique_tailscale_urls.append(u)
+
+  ctx = ssl._create_unverified_context()
+
+  def _try_parse_server_json(raw_text):
+    if not raw_text or not raw_text.strip():
+      return None
+    arr = json.loads(raw_text)
+    if not isinstance(arr, list) or not arr:
+      return None
+    live_map = {}
+    for existing in ALL_SERVERS_DATA:
+      sid_e = str(existing.get("sid") or "")
+      if sid_e:
+        live_map[sid_e] = dict(existing)
+    for grp in arr:
+      for s in grp.get("all") or []:
+        sid_str = str(s.get("sid") or "")
+        if sid_str:
+          live_map[sid_str] = s
+    if not live_map:
+      return None
+    max_sid_int = max(int(k) for k in live_map.keys() if k.isdigit())
+    # Điền đầy đủ các server trung gian từ 610041 -> max_sid_int nếu API chỉ trả về cụm mới nhất
+    for sid_num in range(610041, max_sid_int + 1):
+      s_key = str(sid_num)
+      if s_key not in live_map:
+        srv_idx = sid_num - 610000
+        if srv_idx <= 50:
+          c_name = f"Lưu Sa Hà-S{srv_idx - 40}"
+        elif srv_idx <= 60:
+          c_name = f"Ô Kê Quốc-S{srv_idx - 50}"
+        elif srv_idx <= 70:
+          c_name = f"Xa Trì Quốc-S{srv_idx - 60}"
+        else:
+          c_name = f"Nữ Nhi Quốc-S{srv_idx - 70}"
+        live_map[s_key] = {
+            "sid": s_key,
+            "id": srv_idx,
+            "name": c_name,
+            "server": f"wss://wss-funtap-xy.xinliugame.net:{srv_idx + 9026}/",
+            "status": "2",
+            "recommend": 0,
+        }
+    sorted_sids = sorted(live_map.keys(), key=lambda x: int(x) if x.isdigit() else 0, reverse=True)
+    new_list = []
+    max_sid = sorted_sids[0]
+    for sid_str in sorted_sids:
+      item = live_map[sid_str]
+      srv_id = int(item.get("id") or (int(sid_str) - 610000 if sid_str.isdigit() else 0))
+      raw_name = str(item.get("name") or f"Server S{srv_id}")
+      clean_base = re.sub(r"^\[S\d+[^\]]*\]\s*", "", raw_name).strip()
+      if sid_str == max_sid:
+        disp_name = f"[S{srv_id} Mới Nhất] {clean_base}"
+      elif srv_id >= 39:
+        disp_name = f"[S{srv_id}] {clean_base}"
+      else:
+        disp_name = clean_base
+      cluster_name = clean_base.split("-")[0].strip() if "-" in clean_base else "Nữ Nhi Quốc"
+      ws_srv = str(item.get("server") or f"wss://wss-funtap-xy.xinliugame.net:{srv_id + 9026}/").replace("\\/", "/")
+      new_list.append({
+          "sid": sid_str,
+          "id": srv_id,
+          "name": disp_name,
+          "server": ws_srv,
+          "status": str(item.get("status") or "2"),
+          "recommend": int(item.get("recommend") or (1 if sid_str == max_sid else 0)),
+          "cluster": cluster_name,
+      })
+    if new_list:
+      ALL_SERVERS_DATA[:] = new_list
+      return ALL_SERVERS_DATA[0]
+    return None
+
+  # Bước 1: Ưu tiên gọi trực tiếp Funtap API trước
+  for url in funtap_urls:
     try:
       req = urllib.request.Request(
           url,
@@ -1590,75 +1685,33 @@ def fetch_latest_server_live():
               "Accept": "application/json, text/plain, */*",
           },
       )
-      with urllib.request.urlopen(req, timeout=8, context=ctx) as resp:
+      with urllib.request.urlopen(req, timeout=3.5, context=ctx) as resp:
         raw = resp.read().decode("utf-8", errors="ignore")
-      arr = json.loads(raw)
-      live_map = {}
-      for existing in ALL_SERVERS_DATA:
-        sid_e = str(existing.get("sid") or "")
-        if sid_e:
-          live_map[sid_e] = dict(existing)
-      if isinstance(arr, list):
-        for grp in arr:
-          for s in grp.get("all") or []:
-            sid_str = str(s.get("sid") or "")
-            if sid_str:
-              live_map[sid_str] = s
-      if live_map:
-        max_sid_int = max(int(k) for k in live_map.keys() if k.isdigit())
-        # Điền đầy đủ các server trung gian từ 610041 -> max_sid_int nếu API chỉ trả về cụm mới nhất
-        for sid_num in range(610041, max_sid_int + 1):
-          s_key = str(sid_num)
-          if s_key not in live_map:
-            srv_idx = sid_num - 610000
-            if srv_idx <= 50:
-              c_name = f"Lưu Sa Hà-S{srv_idx - 40}"
-            elif srv_idx <= 60:
-              c_name = f"Ô Kê Quốc-S{srv_idx - 50}"
-            elif srv_idx <= 70:
-              c_name = f"Xa Trì Quốc-S{srv_idx - 60}"
-            else:
-              c_name = f"Nữ Nhi Quốc-S{srv_idx - 70}"
-            live_map[s_key] = {
-                "sid": s_key,
-                "id": srv_idx,
-                "name": c_name,
-                "server": f"wss://wss-funtap-xy.xinliugame.net:{srv_idx + 9026}/",
-                "status": "2",
-                "recommend": 0,
-            }
-        sorted_sids = sorted(live_map.keys(), key=lambda x: int(x) if x.isdigit() else 0, reverse=True)
-        new_list = []
-        max_sid = sorted_sids[0]
-        for sid_str in sorted_sids:
-          item = live_map[sid_str]
-          srv_id = int(item.get("id") or (int(sid_str) - 610000 if sid_str.isdigit() else 0))
-          raw_name = str(item.get("name") or f"Server S{srv_id}")
-          clean_base = re.sub(r"^\[S\d+[^\]]*\]\s*", "", raw_name).strip()
-          if sid_str == max_sid:
-            disp_name = f"[S{srv_id} Mới Nhất] {clean_base}"
-          elif srv_id >= 39:
-            disp_name = f"[S{srv_id}] {clean_base}"
-          else:
-            disp_name = clean_base
-          cluster_name = clean_base.split("-")[0].strip() if "-" in clean_base else "Nữ Nhi Quốc"
-          ws_srv = str(item.get("server") or f"wss://wss-funtap-xy.xinliugame.net:{srv_id + 9026}/").replace("\\/", "/")
-          new_list.append({
-              "sid": sid_str,
-              "id": srv_id,
-              "name": disp_name,
-              "server": ws_srv,
-              "status": str(item.get("status") or "2"),
-              "recommend": int(item.get("recommend") or (1 if sid_str == max_sid else 0)),
-              "cluster": cluster_name,
-          })
-        if new_list:
-          ALL_SERVERS_DATA[:] = new_list
-          return ALL_SERVERS_DATA[0]
-    except Exception as e:
-      last_err = e
+      res = _try_parse_server_json(raw)
+      if res:
+        return res
+    except Exception:
       continue
 
+  # Bước 2: Nếu gọi Funtap lỗi (hoặc rỗng/chặn), MỚI gọi qua URL Tailscale (máy ở nhà / localhost list server)
+  for ts_url in unique_tailscale_urls:
+    try:
+      req = urllib.request.Request(
+          ts_url,
+          headers={
+              "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
+              "Accept": "application/json, text/plain, */*",
+          },
+      )
+      with urllib.request.urlopen(req, timeout=2.5, context=ctx) as resp:
+        raw = resp.read().decode("utf-8", errors="ignore")
+      res = _try_parse_server_json(raw)
+      if res:
+        return res
+    except Exception:
+      continue
+
+  # Bước 3: Dự phòng cuối cùng dùng danh sách có sẵn trong mã
   return ALL_SERVERS_DATA[0]
 
 
@@ -1675,21 +1728,21 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
     with REROLL_LOCK:
       REROLL_STATE["stepMsg"] = f"[{idx_label}] {acc_id} (ID:{real_acc_id} | {srv_name}): {msg}"
 
-  ak_info = await asyncio.to_thread(fetch_fresh_authkey, real_acc_id, access_tok)
-  ts = ak_info["timestamp"]
-  ak = ak_info["authKey"]
+  async def build_login_packet():
+    ak_info = await asyncio.to_thread(fetch_fresh_authkey, real_acc_id, access_tok)
+    json_datas = json.dumps({"gamePlatform": "funtap", "appid": "ios", "pf": "ios_funtap", "phoneSystem": 2})
+    login_payload = bytearray()
+    login_payload.extend(_pkt_str(f"{sid}-{real_acc_id}"))
+    login_payload.extend(struct.pack(">i", int(ak_info["timestamp"])))
+    login_payload.extend(_pkt_str(ak_info["authKey"]))
+    login_payload.extend(_pkt_str("vn"))
+    login_payload.extend(_pkt_str(""))
+    login_payload.extend(_pkt_str("127.0.0.1"))
+    login_payload.extend(_pkt_str(json_datas))
+    login_payload.extend(_pkt_str(""))
+    return _pkt_msg(56, login_payload)
 
-  json_datas = json.dumps({"gamePlatform": "funtap", "appid": "ios", "pf": "ios_funtap", "phoneSystem": 2})
-  login_payload = bytearray()
-  login_payload.extend(_pkt_str(f"{sid}-{real_acc_id}"))
-  login_payload.extend(struct.pack(">i", int(ts)))
-  login_payload.extend(_pkt_str(ak))
-  login_payload.extend(_pkt_str("vn"))
-  login_payload.extend(_pkt_str(""))
-  login_payload.extend(_pkt_str("127.0.0.1"))
-  login_payload.extend(_pkt_str(json_datas))
-  login_payload.extend(_pkt_str(""))
-  login_pkt = _pkt_msg(56, login_payload)
+  login_pkt = await build_login_packet()
 
   ctx = ssl.create_default_context()
   ctx.check_hostname = False
@@ -1702,31 +1755,17 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   seen_bag_list = False
   guide_state = {"gid": 0, "code": 0, "done": False}
   guide_ev = asyncio.Event()
-  code_ev = asyncio.Event()
-  confirmed_codes = set()
-  current_code = None
+  login_ev = asyncio.Event()
+  claims = GiftcodeClaims()
+  confirmed_codes = claims.confirmed
 
   def record_packet(resp):
-    nonlocal dt_count, tnk_count, nt_count, seen_bag_list, current_code
+    nonlocal dt_count, tnk_count, nt_count, seen_bag_list
     if not isinstance(resp, bytes) or len(resp) < 4:
       return
     _, msg_id = struct.unpack(">HH", resp[:4])
-    if msg_id == 144:
-      if current_code:
-        confirmed_codes.add(current_code)
-      code_ev.set()
-      return
-    if msg_id == 10:
-      # Nếu mã đã nhận trước đó (已达到领取上限) thì server không gửi 144 -> Ghi nhận thành công luôn
-      if b"\xe5\xb7\xb2\xe8\xbe\xbe\xe5\x88\xb0\xe9\xa2\x86\xe5\x8f\x96\xe4\xb8\x8a\xe9\x99\x90" in resp:
-        if current_code:
-          confirmed_codes.add(current_code)
-        code_ev.set()
-      elif b"\xe6\x80\xa5\xe6\x80\xa5\xe5\xa6\x82\xe5\xbe\x8b\xe4\xbb\xa4" in resp:
-        # Thành công, gói 144 sẽ tới ngay sau đó để set code_ev & ghi nhận code
-        pass
-      else:
-        code_ev.set()
+    if msg_id in (144, 10):
+      claims.record_packet(resp)
       return
     if msg_id == 599:
       if len(resp) >= 5 and resp[4] == 0:
@@ -1739,6 +1778,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         guide_ev.set()
       return
     if msg_id == 38:
+      login_ev.set()
       if seen_bag_list:
         return
       seen_bag_list = True
@@ -1756,14 +1796,32 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
 
   try:
     async with websockets.connect(ws_url, ssl=ctx, open_timeout=12, ping_interval=None, ping_timeout=None) as ws:
-      async def _reader():
+      async def _reader(connection):
         try:
-          async for resp in ws:
+          async for resp in connection:
             record_packet(resp)
         except Exception:
           pass
 
-      reader_task = asyncio.create_task(_reader())
+      reader_task = asyncio.create_task(_reader(ws))
+
+      async def reconnect_for_codes():
+        nonlocal ws, reader_task
+        set_step("Giftcode phản hồi trễ: đang kết nối lại để nhập bù đúng mã...")
+        reader_task.cancel()
+        await asyncio.gather(reader_task, return_exceptions=True)
+        await ws.close()
+        login_ev.clear()
+        ws = await websockets.connect(ws_url, ssl=ctx, open_timeout=12, ping_interval=None, ping_timeout=None)
+        reader_task = asyncio.create_task(_reader(ws))
+        await ws.send(await build_login_packet())
+        await asyncio.wait_for(login_ev.wait(), timeout=12)
+
+      async def send_code(code):
+        await ws.send(_pkt_msg(143, _pkt_str(code)))
+
+      def code_progress(index, total, code, attempt):
+        set_step(f"Đang nhập {total} Giftcode ({index}/{total}): {code}, lần {attempt}...")
       try:
         set_step("Đang tạo nhân vật & Skip tân thủ...")
         await ws.send(login_pkt)
@@ -1785,39 +1843,16 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         await asyncio.sleep(0.40)
 
         total_codes = len(REROLL_GIFTCODES)
-        for c_idx, code in enumerate(REROLL_GIFTCODES, 1):
-          if REROLL_STATE["stopRequested"]:
-            break
-          if c_idx % 7 == 1 or c_idx == total_codes:
-            set_step(f"Đang nhập {total_codes} Giftcode ({c_idx}/{total_codes})...")
-          current_code = code
-          code_ev.clear()
-          await ws.send(_pkt_msg(143, _pkt_str(code)))
-          try:
-            await asyncio.wait_for(code_ev.wait(), timeout=0.60)
-          except asyncio.TimeoutError:
-            pass
-          await asyncio.sleep(0.08)
+        await claims.claim_all(
+            REROLL_GIFTCODES, send_code, reconnect_for_codes,
+            lambda: REROLL_STATE["stopRequested"], code_progress,
+        )
+        if claims.needs_reconnect and not REROLL_STATE["stopRequested"]:
+          await reconnect_for_codes()
+          claims.new_connection()
 
-        # Vòng 2: Tự động gửi bù ngay bất kỳ mã nào chưa kịp nhận phản hồi (đảm bảo 100% tài khoản đủ 28/28 code)
-        missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
-        if missing_codes and not REROLL_STATE["stopRequested"]:
-          for retry_code in missing_codes:
-            current_code = retry_code
-            code_ev.clear()
-            await ws.send(_pkt_msg(143, _pkt_str(retry_code)))
-            try:
-              await asyncio.wait_for(code_ev.wait(), timeout=0.75)
-            except asyncio.TimeoutError:
-              pass
-            await asyncio.sleep(0.12)
-
-        # Chờ nhận nốt các gói tin phản hồi giftcode còn tồn đọng trong websocket
-        for _ in range(12):
-          if len(confirmed_codes) >= total_codes:
-            break
-          await asyncio.sleep(0.10)
-        current_code = None
+        # Give giftcode mail time to arrive even when every ACK was fast.
+        await asyncio.sleep(1.20)
 
         codes_stat = f"{len(confirmed_codes)}/{total_codes}"
         set_step(f"Đã xác nhận {codes_stat} Code ➜ Nhận thư & Mở 250 mảnh 5★...")
@@ -1838,15 +1873,6 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
 
         # Nếu chưa mở đủ 5 tướng từ 250 mảnh (do server trễ), mở vét nhanh
         if len(heroes_5star) < 5:
-          for retry_code in ("45THANTUONG", "DUONGTIEN", "NGOKHONG", "DAT100KDKT", "DKT50K", "DKT30K", "THANCAN555", "YCAN666"):
-            code_ev.clear()
-            current_code = retry_code
-            await ws.send(_pkt_msg(143, _pkt_str(retry_code)))
-            try:
-              await asyncio.wait_for(code_ev.wait(), timeout=0.55)
-              await asyncio.sleep(0.12)
-            except asyncio.TimeoutError:
-              await asyncio.sleep(0.18)
           await ws.send(_pkt_msg(61))
           await asyncio.sleep(0.35)
           for item_id, qty in [(703, 1), (704, 2), (704, 1), (1012, 1)]:
@@ -1952,6 +1978,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
                 await ws.send(_pkt_msg(91, struct.pack(">i", guide_state["gid"])))
       finally:
         reader_task.cancel()
+        await asyncio.gather(reader_task, return_exceptions=True)
+        await ws.close()
   except Exception as e:
     set_step(f"Lỗi kết nối: {e}")
 
@@ -1986,6 +2014,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
       "isJackpot2x": is_jackpot_2x,
       "codesClaimed": f"{len(confirmed_codes)}/{len(REROLL_GIFTCODES)}",
       "confirmedCodes": list(confirmed_codes),
+      "unconfirmedCodes": [c for c in REROLL_GIFTCODES if c not in confirmed_codes],
+      "codeErrors": dict(claims.errors),
       "time": time.strftime("%Y-%m-%d %H:%M:%S"),
   }
 
@@ -2451,7 +2481,17 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
             disp_acc = "***AN_BAO_MAT***" if is_gh else res["account"]
             disp_pwd = "***" if is_gh else res["password"]
             disp_uid = "***" if is_gh else res["funtapId"]
-            code_stat = res.get("codesClaimed", f"{len(REROLL_GIFTCODES)}/{len(REROLL_GIFTCODES)}")
+            code_stat = res.get("codesClaimed", f"0/{len(REROLL_GIFTCODES)}")
+            if res.get("unconfirmedCodes"):
+              details = []
+              for missing_code in res["unconfirmedCodes"]:
+                raw_error = (res.get("codeErrors") or {}).get(missing_code, "Chưa có xác nhận")
+                parts = raw_error.split("||")
+                reason = VN_LANG_MAP.get(parts[0], parts[0])
+                for arg_idx, value in enumerate(parts[1:], 1):
+                  reason = reason.replace("{" + str(arg_idx) + "}", value)
+                details.append(f"{missing_code}: {' '.join(reason.split())}")
+              print(f"⚠ [{completed_cnt:02d}/{count}] GIFTCODE {code_stat} | Chưa xác nhận: {'; '.join(details)}", flush=True)
             if res["isJackpot2x"]:
               jackpot_cnt += 1
               # Chụp ảnh mục Thần Tướng (Dương Tiễn / Ngộ Không / Na Tra / Đường Tam Tạng đứng đầu Hàng 1)
@@ -2464,7 +2504,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                   f"   🎯 TRÚNG TƯỚNG : {', '.join(res['targetHeroes'])}\n"
                   f"   🔑 TÀI KHOẢN   : {disp_acc}   |   MẬT KHẨU: {disp_pwd}   (ID Nạp: {disp_uid})\n"
                   f"   🖥️ MÁY CHỦ     : {res['serverName']}\n"
-                  f"   🎁 GIFTCODE    : Đã nhập đủ {code_stat} mã (Ăn trọn 250 mảnh 5★ + 68 vé)\n"
+                  f"   🎁 GIFTCODE    : Đã xác nhận {code_stat} mã\n"
                   f"   ⭐ TƯỚNG 5★ PHỤ ({len(res['heroes5Star'])} tổng): {other_summary}\n"
                   f"   📸 ẢNH CHỨNG MINH: {snap_rel or 'Đang lưu...'}\n"
                   f"{'='*88}\n",
