@@ -1,14 +1,14 @@
 {
-  "lastUpdate": 1792719473679,
+  "lastUpdate": 1792722392357,
   "clientType": "Đang khởi động...",
-  "account": "721091521",
-  "roleName": "htdvipz480",
-  "level": 1,
-  "lv": 1,
-  "combatPower": 752,
-  "zhandouli": 752,
-  "zuanshi": 200,
-  "jinbi": 21088,
+  "account": "720788582",
+  "roleName": "tphtd12539",
+  "level": 15,
+  "lv": 15,
+  "combatPower": 26329,
+  "zhandouli": 26329,
+  "zuanshi": 392,
+  "jinbi": 201781,
   "totalHeroes": 8,
   "stageId": 0,
   "stageName": "",
@@ -16,8 +16,8 @@
   "serverId": 610022,
   "serverIndex": 22,
   "wsUrl": "wss://wss-funtap-xy.xinliugame.net:9037/",
-  "timestamp": "1792719476",
-  "authKey": "984aec0ce2a19eb119234b50bff13ecd",
+  "timestamp": "1792722396",
+  "authKey": "cd578e2a597b3fbc91e2818a49c50c04",
   "loginToken": "",
   "aiAutoPlay": false,
   "autoCampaign": false,
@@ -28,83 +28,83 @@
   "topHeroes": [
     {
       "id": 1014,
-      "uuid": "6adaba59c766c05fbd1390d1",
+      "uuid": "6adabf50c766c05fbc00f973",
       "name": "Dương Tiễn",
-      "lv": 1,
+      "lv": 50,
       "star": 5,
-      "zhandouli": 1586,
+      "zhandouli": 8031,
       "weightLv": 0,
-      "metaScore": 525051586
+      "metaScore": 527508031
     },
     {
       "id": 1014,
-      "uuid": "6adaba5cc766c05fbd1391b2",
+      "uuid": "6adabf53c766c05fbc00facf",
       "name": "Dương Tiễn",
       "lv": 1,
       "star": 5,
-      "zhandouli": 1586,
+      "zhandouli": 3306,
       "weightLv": 0,
-      "metaScore": 525051586
+      "metaScore": 525053306
     },
     {
-      "id": 3005,
-      "uuid": "6adaba5cc766c05fbd1391af",
-      "name": "Hạnh Tiên Lâm",
-      "lv": 1,
+      "id": 3013,
+      "uuid": "6adac4fdc766c05fbc025242",
+      "name": "Trư Bát Giới",
+      "lv": 36,
       "star": 5,
-      "zhandouli": 1269,
+      "zhandouli": 5168,
       "weightLv": 0,
-      "metaScore": 525051269
+      "metaScore": 26805168
     },
     {
       "id": 1012,
-      "uuid": "6adaba59c766c05fbd1390e7",
+      "uuid": "6adabf53c766c05fbc00fae1",
       "name": "Cang Kim Tinh Quân",
+      "lv": 18,
+      "star": 5,
+      "zhandouli": 3967,
+      "weightLv": 0,
+      "metaScore": 25903967
+    },
+    {
+      "id": 2007,
+      "uuid": "6adabf54c766c05fbc00fb5b",
+      "name": "Đại Bằng Vương",
       "lv": 1,
       "star": 5,
-      "zhandouli": 1687,
+      "zhandouli": 3242,
       "weightLv": 0,
-      "metaScore": 25051687
+      "metaScore": 25053242
     },
     {
       "id": 3007,
-      "uuid": "6adaba5dc766c05fbd1391d5",
+      "uuid": "6adabf54c766c05fbc00fb28",
       "name": "Tiểu Bạch Long",
       "lv": 1,
       "star": 5,
-      "zhandouli": 1346,
+      "zhandouli": 3161,
       "weightLv": 0,
-      "metaScore": 25051346
-    },
-    {
-      "id": 3009,
-      "uuid": "6adaba5fc766c05fbd139242",
-      "name": "Sa Ngộ Tĩnh",
-      "lv": 1,
-      "star": 5,
-      "zhandouli": 1286,
-      "weightLv": 0,
-      "metaScore": 25051286
+      "metaScore": 25053161
     },
     {
       "id": 3003,
-      "uuid": "6adaba59c766c05fbd1390ab",
+      "uuid": "6adabf50c766c05fbc00f93a",
       "name": "Kim Trì Trưởng Lão",
       "lv": 1,
       "star": 5,
-      "zhandouli": 1157,
+      "zhandouli": 2966,
       "weightLv": 0,
-      "metaScore": 25051157
+      "metaScore": 25052966
     },
     {
       "id": 3004,
-      "uuid": "6adaba5dc766c05fbd1391e1",
+      "uuid": "6adabf56c766c05fbc00fbde",
       "name": "Quảng Trí",
       "lv": 1,
       "star": 5,
-      "zhandouli": 1120,
+      "zhandouli": 2929,
       "weightLv": 0,
-      "metaScore": 25051120
+      "metaScore": 25052929
     }
   ],
   "ownedTamThanh": [
@@ -118,7 +118,7 @@
   "brainTick": 0,
   "lastPower": 0,
   "stagnantTicks": 0,
-  "lastConnectedUpdate": 1792719473679,
+  "lastConnectedUpdate": 1792722392357,
   "loginInStage": false,
   "isConnect": true
 }

@@ -17,6 +17,8 @@ DAN_NICK_DA_QUAY*.json
 *.log
 temp_*
 reshoot_*
+*_fixed.png
+.synced_accounts.txt
 
 # OS artifacts
 .DS_Store

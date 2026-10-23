@@ -1,7 +1,8 @@
 # =========================================================================================================================
-# DANH SÁCH NICK TRÚNG 2x/3x DƯƠNG TIỄN - TÔN NGỘ KHÔNG - NA TRA (TỔNG: 19 NICK) — BÁN NICK NÀO CHỈ CẦN XÓA 1 DÒNG ĐÓ
+# DANH SÁCH NICK TRÚNG 2x/3x DƯƠNG TIỄN - TÔN NGỘ KHÔNG - NA TRA (TỔNG: 20 NICK) — BÁN NICK NÀO CHỈ CẦN XÓA 1 DÒNG ĐÓ
 # CẤU TRÚC: USER | PASS | SERVER (SID) | [X2/X3] TƯỚNG TRÚNG | TỔNG 5★ | TƯỚNG 5★ PHỤ | UID NẠP | ẢNH CHỤP | THỜI GIAN
 # =========================================================================================================================
+tphtd12539 | tphtd123 | [S72] Nữ Nhi Quốc-S2 (610072) | [X2] 2x Dương Tiễn | 10★ | Kim Trì Trưởng Lão + Cang Kim Tinh Quân + Tiểu Bạch Long + Hắc Hùng Tinh x2 + Đại Bằng Vương + Ngân Giác + Quảng Trí | 720788582 | anh_nick_trung/tphtd12539_S72.png | 2026-10-23 08:58:56
 htd_vip_z_480 | P423xU7bCt | [S71] Nữ Nhi Quốc-S1 (610071) | [X2] 2x Dương Tiễn | 13★ | Kim Trì Trưởng Lão + Cang Kim Tinh Quân + Hạnh Tiên Lâm + Tiểu Bạch Long + Quảng Trí + Hạc Tiên Nhân x2 + Hắc Hùng Tinh x2 + Sa Ngộ Tĩnh + Ngân Giác | 721091521 | anh_nick_trung/htd_vip_z_480_S71.png | 2026-10-23 08:37:43
 htd_vip_t_736 | 34NR82kuuH | [S71] Nữ Nhi Quốc-S1 (610071) | [X2] 2x Dương Tiễn | 13★ | Kim Trì Trưởng Lão x2 + Quảng Trí + Cang Kim Tinh Quân + Tiểu Bạch Long + Hạc Tiên Nhân x2 + Ngân Giác + Kinh Hà Long Vương + Khổng Tước Công Chúa + Hắc Hùng Tinh | 721026007 | anh_nick_trung/htd_vip_t_736_S71.png | 2026-10-23 07:25:28
 htd_vip_r_317 | mri3H385QF | [S71] Nữ Nhi Quốc-S1 (610071) | [X2] 2x Dương Tiễn | 13★ | Hạc Tiên Nhân + Kinh Hà Long Vương + Cang Kim Tinh Quân + Tiểu Bạch Long + Kim Trì Trưởng Lão + Ngân Giác + Trì Quốc Thiên Vương + Như Ý Chân Tiên + Quảng Trí + Đại Bằng Vương + Hắc Hùng Tinh | 721001011 | anh_nick_trung/htd_vip_r_317_S71.png | 2026-10-23 07:01:16
