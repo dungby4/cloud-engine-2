@@ -8,7 +8,7 @@ echo ======================================================================
 
 start "D-AUTO AUTO-SYNC 24/7" /min cmd /c "python auto_sync_watcher.py || py auto_sync_watcher.py"
 
-start "D-AUTO [MAY 2 - TIEN TO htdvipb]" cmd /k "python chay_web_auto.py --machine 2 --prefix htdvipb --port 8089"
+start "D-AUTO [MAY 2 - TIEN TO htdvipb]" cmd /k "python -u chay_web_auto.py --machine 2 --prefix htdvipb --port 8089"
 
-python chay_web_auto.py --machine 1 --prefix htdvipa --port 8088 %* || py chay_web_auto.py --machine 1 --prefix htdvipa --port 8088 %*
+python -u chay_web_auto.py --machine 1 --prefix htdvipa --port 8088 %* || py -u chay_web_auto.py --machine 1 --prefix htdvipa --port 8088 %*
 pause

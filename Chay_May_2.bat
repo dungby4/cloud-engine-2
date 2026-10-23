@@ -4,5 +4,5 @@ cd /d "%~dp0"
 
 start "D-AUTO AUTO-SYNC 24/7" /min cmd /c "python auto_sync_watcher.py || py auto_sync_watcher.py"
 
-python chay_web_auto.py --machine 2 --prefix htdvipb %* || py chay_web_auto.py --machine 2 --prefix htdvipb %*
+python -u chay_web_auto.py --machine 2 --prefix htdvipb %* || py -u chay_web_auto.py --machine 2 --prefix htdvipb %*
 pause
