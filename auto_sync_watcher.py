@@ -23,6 +23,7 @@ def main() -> None:
     except Exception:
         pass
 
+    base_dir = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description="Tự động giám sát và bơm nick Hắc Tây Du 24/7")
     parser.add_argument(
         "--url",
@@ -33,7 +34,7 @@ def main() -> None:
         "--secret",
         default="d57be08c4bbbc9c7feda86285611ee41fc8016d4f1bf4a1a7a60502d123b0ab3",
         help="Mã bí mật xác thực webhook",
-    base_dir = Path(__file__).resolve().parent
+    )
     parser.add_argument("--txt", default=str(base_dir / "DAN_NICK_TRUNG_TUONG.txt"), help="File nick cần theo dõi")
     parser.add_argument("--photos", default=str(base_dir / "anh_nick_trung"), help="Thư mục ảnh")
     parser.add_argument("--poll-interval", type=float, default=3.0, help="Số giây kiểm tra lại file")
