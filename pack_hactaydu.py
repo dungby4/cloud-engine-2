@@ -20,8 +20,9 @@ def main() -> None:
         pass
 
     parser = argparse.ArgumentParser(description="Đóng gói nick và ảnh Hắc Tây Du gửi Bot Telegram")
-    parser.add_argument("--txt", default="DAN_NICK_TRUNG_TUONG.txt", help="Đường dẫn file txt nick")
-    parser.add_argument("--photos", default="anh_nick_trung", help="Thư mục chứa ảnh chụp")
+    base_dir = Path(__file__).resolve().parent
+    parser.add_argument("--txt", default=str(base_dir / "DAN_NICK_TRUNG_TUONG.txt"), help="Đường dẫn file txt nick")
+    parser.add_argument("--photos", default=str(base_dir / "anh_nick_trung"), help="Thư mục chứa ảnh chụp")
     parser.add_argument("--output", default="hactaydu_sync.zip", help="Tên file zip đầu ra")
     args = parser.parse_args()
 
@@ -31,12 +32,12 @@ def main() -> None:
 
     # Fallback to absolute tool path if running elsewhere
     if not txt_path.exists():
-        alt_txt = Path(r"D:\tools\HacTayDu_Web_Auto_v79\DAN_NICK_TRUNG_TUONG.txt")
+        alt_txt = base_dir / "DAN_NICK_TRUNG_TUONG.txt"
         if alt_txt.exists():
             txt_path = alt_txt
 
     if not photos_dir.exists():
-        alt_photos = Path(r"D:\tools\HacTayDu_Web_Auto_v79\anh_nick_trung")
+        alt_photos = base_dir / "anh_nick_trung"
         if alt_photos.exists():
             photos_dir = alt_photos
 

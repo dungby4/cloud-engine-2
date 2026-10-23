@@ -19,11 +19,12 @@ def main() -> None:
     except Exception:
         pass
 
+    base_dir = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description="Push Hac Tay Du accounts to Telegram Shop Bot")
     parser.add_argument("--server", default="192.168.1.9", help="Server IP or hostname")
     parser.add_argument("--user", default="truong", help="SSH user")
-    parser.add_argument("--txt", default=r"D:\tools\HacTayDu_Web_Auto_v79\DAN_NICK_TRUNG_TUONG.txt", help="Path to DAN_NICK_TRUNG_TUONG.txt")
-    parser.add_argument("--photos", default=r"D:\tools\HacTayDu_Web_Auto_v79\anh_nick_trung", help="Path to photos directory")
+    parser.add_argument("--txt", default=str(base_dir / "DAN_NICK_TRUNG_TUONG.txt"), help="Path to DAN_NICK_TRUNG_TUONG.txt")
+    parser.add_argument("--photos", default=str(base_dir / "anh_nick_trung"), help="Path to photos directory")
     parser.add_argument("--no-purge", action="store_true", default=True, help="Do not purge existing stock")
     args = parser.parse_args()
 
