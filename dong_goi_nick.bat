@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 echo =======================================================
-echo    ĐÓNG GÓI NICK & ẢNH HẮC TÂY DU NẠP VÀO BOT TELEGRAM
+echo    DONG GOI NICK VA ANH HAC TAY DU NAP VAO BOT TELEGRAM
 echo =======================================================
 python "%~dp0pack_hactaydu.py"
 pause

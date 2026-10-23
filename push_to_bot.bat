@@ -1,7 +1,6 @@
 @echo off
-chcp 65001 >nul
 echo =======================================================
-echo    TOOL BƠM TÀI KHOẢN HẮC TÂY DU VÀO TELEGRAM SHOP
+echo    TOOL BOM TAI KHOAN HAC TAY DU VAO TELEGRAM SHOP
 echo =======================================================
-python "%~dp0push_hactaydu.py"
+python "%~dp0push_hactaydu.py" || py "%~dp0push_hactaydu.py"
 pause
