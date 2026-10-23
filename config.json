@@ -6,9 +6,9 @@
   "target_server": "latest",
   "min_copies": 2,
   "sales_bot": {
-    "enabled": false,
-    "webhook_url": "",
-    "auth_token": "",
+    "enabled": true,
+    "webhook_url": "http://100.94.81.101:8082/api/v1/inventory/hactaydu-webhook",
+    "auth_token": "d57be08c4bbbc9c7feda86285611ee41fc8016d4f1bf4a1a7a60502d123b0ab3",
     "telegram_bot_token": "",
     "telegram_chat_id": ""
   }

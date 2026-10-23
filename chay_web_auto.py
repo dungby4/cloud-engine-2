@@ -1690,12 +1690,27 @@ async def _capture_winner_screenshot_async(res):
 async def _push_winner_to_sales_bot_async(res):
   """Bơm tự động thông tin tài khoản trúng 2x/3x sang Bot bán hàng (Shop Bot) hoặc Telegram."""
   bot_cfg = APP_CONFIG.get("sales_bot") or {}
+  is_enabled = bot_cfg.get("enabled", False)
   webhook_url = str(bot_cfg.get("webhook_url") or "").strip()
   tg_token = str(bot_cfg.get("telegram_bot_token") or "").strip()
   tg_chat = str(bot_cfg.get("telegram_chat_id") or "").strip()
 
-  if not webhook_url and not tg_token:
+  if not is_enabled and not webhook_url and not tg_token:
     return
+
+  import base64
+
+  snap_path = res.get("screenshot") or ""
+  photo_b64 = None
+  photo_fn = os.path.basename(snap_path) if snap_path else f"{res.get('account')}.png"
+  if snap_path:
+    full_snap = os.path.join(DIRECTORY, snap_path) if not os.path.isabs(snap_path) else snap_path
+    if os.path.exists(full_snap):
+      try:
+        with open(full_snap, "rb") as f_img:
+          photo_b64 = base64.b64encode(f_img.read()).decode("ascii")
+      except Exception:
+        pass
 
   payload = {
       "machine_id": MACHINE_ID,
@@ -1708,7 +1723,9 @@ async def _push_winner_to_sales_bot_async(res):
       "total_5star": len(res.get("heroes5Star") or []),
       "target_heroes": res.get("targetHeroes") or [],
       "heroes_5star": res.get("heroes5Star") or [],
-      "screenshot_path": res.get("screenshot") or "",
+      "screenshot_path": snap_path,
+      "screenshot_base64": photo_b64,
+      "screenshot_filename": photo_fn,
       "time": res.get("time") or time.strftime("%Y-%m-%d %H:%M:%S"),
   }
 
@@ -1716,14 +1733,21 @@ async def _push_winner_to_sales_bot_async(res):
     if webhook_url:
       try:
         data_bytes = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        token = str(bot_cfg.get("auth_token") or bot_cfg.get("api_key") or "").strip()
         headers = {"Content-Type": "application/json; charset=utf-8"}
-        token = bot_cfg.get("auth_token") or bot_cfg.get("api_key")
         if token:
+          headers["X-Webhook-Secret"] = token
           headers["Authorization"] = f"Bearer {token}"
           headers["X-API-Key"] = token
         req = urllib.request.Request(webhook_url, data=data_bytes, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=6) as resp:
-          print(f"🤖 [Bot Bán Hàng] Bơm thành công nick {res.get('account')} lên Bot qua Webhook (HTTP {resp.status})", flush=True)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+          res_json = {}
+          try:
+            res_json = json.loads(resp.read().decode("utf-8"))
+          except Exception:
+            pass
+          status_msg = res_json.get("status") or "SUCCESS"
+          print(f"🤖 [Bot Bán Hàng] Đã tự động bơm nick {res.get('account')} lên Bot thành công! ({status_msg})", flush=True)
       except Exception as e:
         print(f"⚠️ [Bot Bán Hàng] Lỗi bơm nick {res.get('account')} lên Webhook: {e}", flush=True)
 
