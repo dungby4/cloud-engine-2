@@ -67,19 +67,23 @@ def main():
         dt_total = sum(int(r.get("dt") or 0) for r in records)
         tnk_total = sum(int(r.get("tnk") or 0) for r in records)
         nt_total = sum(int(r.get("nt") or 0) for r in records)
+        lt_total = sum(int(r.get("lt") or 0) for r in records)
         dtt_total = sum(int(r.get("dtt") or 0) for r in records)
         jackpot_cnt = sum(1 for r in records if r.get("jackpot"))
 
-        print(f"🔥 Số nick nổ 2x Jackpot (Dương Tiễn / Ngộ Không): {jackpot_cnt} nick")
+        print(f"🔥 Số nick nổ 2x Jackpot (DT / TNK / Na Tra / Lý Tịnh / Đường Tăng): {jackpot_cnt} nick")
         print(f"⚔️ Tổng số Dương Tiễn quay ra : {dt_total}")
         print(f"🐒 Tổng số Ngộ Không quay ra  : {tnk_total}")
         print(f"🔥 Tổng số Na Tra quay ra     : {nt_total}")
+        print(f"🗼 Tổng số Lý Tịnh quay ra   : {lt_total}")
         print(f"📿 Tổng số Đường Tăng quay ra : {dtt_total}")
         print("\n🌐 Phân bố theo Server:")
         for srv, cnt in server_counts.most_common(5):
             print(f"   • {srv}: {cnt} nick")
         print("\n👉 Gợi ý tìm kiếm:")
         print("   python tim_tuong.py \"Na Tra\" 2              (Tìm nick có >= 2 Na Tra)")
+        print("   python tim_tuong.py \"Lý Tịnh\" 2             (Tìm nick có >= 2 Lý Tịnh)")
+        print("   python tim_tuong.py \"Đường Tam Tạng\" 2       (Tìm nick có >= 2 Đường Tam Tạng)")
         print("   python tim_tuong.py \"Dương Tiễn\" 1 --sid 76  (Tìm nick có Dương Tiễn trên S76)")
         print("=" * 96)
         return
@@ -118,7 +122,9 @@ def main():
             count_h = max(count_h, int(r.get("tnk") or 0))
         elif "na tra" in target_hero or "natra" in target_hero:
             count_h = max(count_h, int(r.get("nt") or 0))
-        elif "đường tam tạng" in target_hero or "duong tam tang" in target_hero or "đường tăng" in target_hero:
+        elif "lý tịnh" in target_hero or "ly tinh" in target_hero:
+            count_h = max(count_h, int(r.get("lt") or 0))
+        elif "đường tam tạng" in target_hero or "duong tam tang" in target_hero or "đường tăng" in target_hero or "duong tang" in target_hero:
             count_h = max(count_h, int(r.get("dtt") or 0))
 
         if count_h >= args.min_copies:

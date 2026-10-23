@@ -1020,7 +1020,8 @@ def _log_roll_history(res):
     return
   try:
     heroes = res.get("heroes5Star") or res.get("heroes") or []
-    dtt_cnt = heroes.count("Đường Tam Tạng")
+    dtt_cnt = res.get("dttCount") if res.get("dttCount") is not None else heroes.count("Đường Tam Tạng")
+    lt_cnt = res.get("ltCount") if res.get("ltCount") is not None else heroes.count("Lý Tịnh")
     record = {
         "time": res.get("time") or time.strftime("%Y-%m-%d %H:%M:%S"),
         "u": res.get("account"),
@@ -1031,7 +1032,8 @@ def _log_roll_history(res):
         "dt": int(res.get("dtCount") or 0),
         "tnk": int(res.get("tnkCount") or 0),
         "nt": int(res.get("ntCount") or 0),
-        "dtt": dtt_cnt,
+        "lt": int(lt_cnt),
+        "dtt": int(dtt_cnt),
         "total_5s": len(heroes),
         "jackpot": bool(res.get("isJackpot2x")),
         "codes": res.get("codesClaimed", "28/28"),
@@ -1246,6 +1248,7 @@ def _parse_heroes_from_target_and_sub(target_raw, other_raw):
   dt_c = 0
   tnk_c = 0
   nt_c = 0
+  lt_c = 0
   dtt_c = 0
   m_dt = re.search(r"(\d+)x\s*Dương Tiễn", target_raw)
   if m_dt:
@@ -1256,7 +1259,10 @@ def _parse_heroes_from_target_and_sub(target_raw, other_raw):
   m_nt = re.search(r"(\d+)x\s*Na Tra", target_raw)
   if m_nt:
     nt_c = int(m_nt.group(1))
-  m_dtt = re.search(r"(\d+)x\s*Đường Tam Tạng", target_raw)
+  m_lt = re.search(r"(\d+)x\s*Lý Tịnh", target_raw)
+  if m_lt:
+    lt_c = int(m_lt.group(1))
+  m_dtt = re.search(r"(\d+)x\s*Đường Tam Tạng", target_raw) or re.search(r"(\d+)x\s*Đường Tăng", target_raw)
   if m_dtt:
     dtt_c = int(m_dtt.group(1))
 
@@ -1264,6 +1270,7 @@ def _parse_heroes_from_target_and_sub(target_raw, other_raw):
       ["Dương Tiễn"] * dt_c
       + ["Tôn Ngộ Không"] * tnk_c
       + ["Na Tra"] * nt_c
+      + ["Lý Tịnh"] * lt_c
       + ["Đường Tam Tạng"] * dtt_c
   )
   if other_raw and other_raw not in ("-", "Không", "None"):
@@ -1280,9 +1287,12 @@ def _parse_heroes_from_target_and_sub(target_raw, other_raw):
         h_cnt = 1
       if h_name == "Đường Tam Tạng" and dtt_c > 0:
         continue
+      if h_name == "Lý Tịnh" and lt_c > 0:
+        continue
       h5_list.extend([h_name] * h_cnt)
 
-  dtt_total = h5_list.count("Đường Tam Tạng")
+  lt_total = max(lt_c, h5_list.count("Lý Tịnh"))
+  dtt_total = max(dtt_c, h5_list.count("Đường Tam Tạng"))
   badges = []
   if dt_c >= 1:
     badges.append(f"{dt_c}x Dương Tiễn")
@@ -1290,9 +1300,11 @@ def _parse_heroes_from_target_and_sub(target_raw, other_raw):
     badges.append(f"{tnk_c}x Tôn Ngộ Không")
   if nt_c >= 1:
     badges.append(f"{nt_c}x Na Tra")
+  if lt_total >= 1:
+    badges.append(f"{lt_total}x Lý Tịnh")
   if dtt_total >= 1:
     badges.append(f"{dtt_total}x Đường Tam Tạng")
-  return dt_c, tnk_c, nt_c, h5_list, badges
+  return dt_c, tnk_c, nt_c, lt_total, dtt_total, h5_list, badges
 
 
 def _format_winner_pipe_line(r):
@@ -1304,11 +1316,20 @@ def _format_winner_pipe_line(r):
   other_str = " + ".join([
       f"{k} x{v}" if v > 1 else k
       for k, v in c.items()
-      if k not in ("Dương Tiễn", "Tôn Ngộ Không", "Na Tra", "Đường Tam Tạng")
+      if k not in ("Dương Tiễn", "Tôn Ngộ Không", "Na Tra", "Lý Tịnh", "Đường Tam Tạng")
   ]) or "-"
-  max_single = max(int(r.get("dtCount") or 0), int(r.get("tnkCount") or 0), int(r.get("ntCount") or 0))
+  max_single = max(
+      int(r.get("dtCount") or 0),
+      int(r.get("tnkCount") or 0),
+      int(r.get("ntCount") or 0),
+      int(r.get("ltCount") or 0),
+      int(r.get("dttCount") or 0),
+  )
   tier_tag = f"[X{max_single}] " if max_single >= 2 else ""
   badges = list(r.get("targetHeroes") or [])
+  lt_cnt = c.get("Lý Tịnh", 0)
+  if lt_cnt >= 1 and not any("Lý Tịnh" in b for b in badges):
+    badges.append(f"{lt_cnt}x Lý Tịnh")
   dtt_cnt = c.get("Đường Tam Tạng", 0)
   if dtt_cnt >= 1 and not any("Đường Tam Tạng" in b for b in badges):
     badges.append(f"{dtt_cnt}x Đường Tam Tạng")
@@ -1368,7 +1389,7 @@ def _sync_winners_from_txt():
         sid_val = int(m_sid.group(1)) if m_sid else 610065
         srv_name = re.sub(r"\s*\(61\d{4}\)\s*$", "", srv_col).strip()
 
-        dt_c, tnk_c, nt_c, h5_list, badges = _parse_heroes_from_target_and_sub(target_raw, other_raw)
+        dt_c, tnk_c, nt_c, lt_c, dtt_c, h5_list, badges = _parse_heroes_from_target_and_sub(target_raw, other_raw)
         if not badges:
           continue
         if not img_path:
@@ -1390,6 +1411,8 @@ def _sync_winners_from_txt():
             "dtCount": dt_c,
             "tnkCount": tnk_c,
             "ntCount": nt_c,
+            "ltCount": lt_c,
+            "dttCount": dtt_c,
             "targetHeroes": badges,
             "hasTarget": True,
             "isJackpot2x": True,
@@ -1425,7 +1448,7 @@ def _sync_winners_from_txt():
       else:
         sid_val = 610065
 
-      dt_c, tnk_c, nt_c, h5_list, badges = _parse_heroes_from_target_and_sub(target_raw, other_raw)
+      dt_c, tnk_c, nt_c, lt_c, dtt_c, h5_list, badges = _parse_heroes_from_target_and_sub(target_raw, other_raw)
       if not img_path:
         cand_img = os.path.join(SCREENSHOT_DIR, f"{acc_name}_S{sid_val - 610000}.png")
         if os.path.exists(cand_img):
@@ -1445,6 +1468,8 @@ def _sync_winners_from_txt():
           "dtCount": dt_c,
           "tnkCount": tnk_c,
           "ntCount": nt_c,
+          "ltCount": lt_c,
+          "dttCount": dtt_c,
           "targetHeroes": badges,
           "hasTarget": True,
           "isJackpot2x": True,
@@ -1542,9 +1567,20 @@ def _save_reroll_files(force=False):
         list(by_winner.values()),
         key=lambda x: (
             int(x.get("serverId") or 0),
-            max(int(x.get("dtCount") or 0), int(x.get("tnkCount") or 0), int(x.get("ntCount") or 0)),
-            (int(x.get("dtCount") or 0) + int(x.get("tnkCount") or 0) + int(x.get("ntCount") or 0)),
-            1 if "Đường Tam Tạng" in (x.get("heroes5Star") or []) else 0,
+            max(
+                int(x.get("dtCount") or 0),
+                int(x.get("tnkCount") or 0),
+                int(x.get("ntCount") or 0),
+                int(x.get("ltCount") or 0),
+                int(x.get("dttCount") or 0),
+            ),
+            (
+                int(x.get("dtCount") or 0)
+                + int(x.get("tnkCount") or 0)
+                + int(x.get("ntCount") or 0)
+                + int(x.get("ltCount") or 0)
+                + int(x.get("dttCount") or 0)
+            ),
             str(x.get("time") or ""),
         ),
         reverse=True,
@@ -1571,7 +1607,7 @@ def _save_reroll_files(force=False):
     # 2. Lưu DAN_NICK_TRUNG_TUONG.txt và DANH_SACH_NICK_D_AUTO.txt dạng 1 dòng/nick ngăn cách bằng dấu |
     header_lines = (
         "# =========================================================================================================================\n"
-        f"# DANH SÁCH NICK TRÚNG 2x/3x DƯƠNG TIỄN - TÔN NGỘ KHÔNG - NA TRA (TỔNG: {len(winners_only)} NICK) — BÁN NICK NÀO CHỈ CẦN XÓA 1 DÒNG ĐÓ\n"
+        f"# DANH SÁCH NICK TRÚNG 2x/3x DƯƠNG TIỄN - TÔN NGỘ KHÔNG - NA TRA - LÝ TỊNH - ĐƯỜNG TĂNG (TỔNG: {len(winners_only)} NICK) — BÁN NICK NÀO CHỈ CẦN XÓA 1 DÒNG ĐÓ\n"
         "# CẤU TRÚC: USER | PASS | SERVER (SID) | [X2/X3] TƯỚNG TRÚNG | TỔNG 5★ | TƯỚNG 5★ PHỤ | UID NẠP | ẢNH CHỤP | THỜI GIAN\n"
         "# =========================================================================================================================\n"
     )
@@ -1605,14 +1641,23 @@ def _save_reroll_files(force=False):
         other_str = " + ".join([
             f"{k} x{v}" if v > 1 else k
             for k, v in c.items()
-            if k not in ("Dương Tiễn", "Tôn Ngộ Không", "Na Tra", "Đường Tam Tạng")
+            if k not in ("Dương Tiễn", "Tôn Ngộ Không", "Na Tra", "Lý Tịnh", "Đường Tam Tạng")
         ]) or "-"
         srv_clean = str(r.get("serverName") or "").replace(" Mới Nhất]", "]")
         sid_val = int(r.get("serverId") or 610065)
         fid = str(r.get("funtapId") or "")
-        max_single = max(int(r.get("dtCount") or 0), int(r.get("tnkCount") or 0), int(r.get("ntCount") or 0))
+        max_single = max(
+            int(r.get("dtCount") or 0),
+            int(r.get("tnkCount") or 0),
+            int(r.get("ntCount") or 0),
+            int(r.get("ltCount") or 0),
+            int(r.get("dttCount") or 0),
+        )
         tier_tag = f"[X{max_single}] " if max_single >= 2 else ""
         badges = list(r.get("targetHeroes") or [])
+        lt_cnt = c.get("Lý Tịnh", 0)
+        if lt_cnt >= 1 and not any("Lý Tịnh" in b for b in badges):
+          badges.append(f"{lt_cnt}x Lý Tịnh")
         dtt_cnt = c.get("Đường Tam Tạng", 0)
         if dtt_cnt >= 1 and not any("Đường Tam Tạng" in b for b in badges):
           badges.append(f"{dtt_cnt}x Đường Tam Tạng")
@@ -1816,6 +1861,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   dt_count = 0
   tnk_count = 0
   nt_count = 0
+  lt_count = 0
+  dtt_count = 0
   seen_bag_list = False
   guide_state = {"gid": 0, "code": 0, "done": False}
   guide_ev = asyncio.Event()
@@ -1824,7 +1871,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   confirmed_codes = claims.confirmed
 
   def record_packet(resp):
-    nonlocal dt_count, tnk_count, nt_count, seen_bag_list
+    nonlocal dt_count, tnk_count, nt_count, lt_count, dtt_count, seen_bag_list
     if not isinstance(resp, bytes) or len(resp) < 4:
       return
     _, msg_id = struct.unpack(">HH", resp[:4])
@@ -1851,12 +1898,16 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
     for h in _parse_hero_packet(resp):
       if h["star"] >= 5:
         heroes_5star.append(h["name"])
-      if h["id"] == 1014 or "Dương Tiễn" in h["name"] or h["name_cn"] == "杨戬":
+      if h["id"] == 1014 or "Dương Tiễn" in h["name"] or h.get("name_cn") == "杨戬":
         dt_count += 1
-      if h["id"] == 2014 or "Ngộ Không" in h["name"] or h["name_cn"] == "孙悟空":
+      if h["id"] == 2014 or "Ngộ Không" in h["name"] or h.get("name_cn") == "孙悟空":
         tnk_count += 1
-      if h["id"] == 1013 or "Na Tra" in h["name"] or h["name_cn"] == "哪吒":
+      if h["id"] in (1013, 3014) or "Na Tra" in h["name"] or h.get("name_cn") == "哪吒":
         nt_count += 1
+      if "Lý Tịnh" in h["name"] or "Ly Tinh" in h["name"] or h.get("name_cn") in ("李靖", "托塔天王"):
+        lt_count += 1
+      if h.get("id") == 3010 or "Đường Tam Tạng" in h["name"] or "Đường Tăng" in h["name"] or h.get("name_cn") in ("唐三藏", "唐玄奘", "唐僧"):
+        dtt_count += 1
 
   try:
     async with websockets.connect(ws_url, ssl=ctx, open_timeout=12, ping_interval=None, ping_timeout=None) as ws:
@@ -2009,9 +2060,9 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
 
         await asyncio.sleep(0.24)
 
-        # NẾU NICK TRÚNG >= 2x DƯƠNG TIỄN HOẶC >= 2x TÔN NGỘ KHÔNG: Tự động Skip Tân Thủ 100%
-        if (dt_count >= 2) or (tnk_count >= 2):
-          set_step("🔥 Trúng 2x/3x Dương Tiễn / Ngộ Không! Đang Skip Tân Thủ 100%...")
+        # NẾU NICK TRÚNG >= 2x DƯƠNG TIỄN / NGỘ KHÔNG / NA TRA / LÝ TỊNH / ĐƯỜNG TĂNG: Tự động Skip Tân Thủ 100%
+        if (dt_count >= 2) or (tnk_count >= 2) or (nt_count >= 2) or (lt_count >= 2) or (dtt_count >= 2):
+          set_step("🔥 Trúng 2x Thần Tướng! Đang Skip Tân Thủ 100%...")
           await ws.send(_pkt_msg(598, struct.pack(">b", 1)))
           await ws.send(_pkt_msg(598, struct.pack(">b", 0)))
           await ws.send(_pkt_msg(91, struct.pack(">i", 1)))
@@ -2047,9 +2098,10 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   except Exception as e:
     set_step(f"Lỗi kết nối: {e}")
 
-  # CHỈ LẤY NICK NỔ >= 2x DƯƠNG TIỄN HOẶC >= 2x TÔN NGỘ KHÔNG (Kèm hiển thị thêm Na Tra / Đường Tam Tạng nếu có cùng trong nick)
-  is_jackpot_2x = (dt_count >= 2) or (tnk_count >= 2)
-  dtt_count = heroes_5star.count("Đường Tam Tạng")
+  # CHỈ LẤY NICK NỔ >= 2x: Dương Tiễn, Tôn Ngộ Không, Na Tra, Lý Tịnh, Đường Tam Tạng
+  dtt_count = max(dtt_count, heroes_5star.count("Đường Tam Tạng"))
+  lt_count = max(lt_count, heroes_5star.count("Lý Tịnh"))
+  is_jackpot_2x = (dt_count >= 2) or (tnk_count >= 2) or (nt_count >= 2) or (lt_count >= 2) or (dtt_count >= 2)
   target_badges = []
   if is_jackpot_2x:
     if dt_count >= 1:
@@ -2058,6 +2110,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
       target_badges.append(f"{tnk_count}x Tôn Ngộ Không")
     if nt_count >= 1:
       target_badges.append(f"{nt_count}x Na Tra")
+    if lt_count >= 1:
+      target_badges.append(f"{lt_count}x Lý Tịnh")
     if dtt_count >= 1:
       target_badges.append(f"{dtt_count}x Đường Tam Tạng")
 
@@ -2073,6 +2127,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
       "dtCount": dt_count,
       "tnkCount": tnk_count,
       "ntCount": nt_count,
+      "ltCount": lt_count,
+      "dttCount": dtt_count,
       "targetHeroes": target_badges,
       "hasTarget": is_jackpot_2x,
       "isJackpot2x": is_jackpot_2x,
@@ -2214,9 +2270,10 @@ async def _capture_winner_screenshot_async(res):
             var priorityWeight = function(h) {
               if (!h) return 0;
               if (h.id === 1014 || (h.name && h.name.indexOf("Dương Tiễn") >= 0)) return 100000;
-              if (h.id === 2014 || (h.name && h.name.indexOf("Ngộ Không") >= 0)) return 90000;
-              if (h.id === 1013 || (h.name && h.name.indexOf("Na Tra") >= 0)) return 80000;
-              if (h.name && h.name.indexOf("Đường Tam Tạng") >= 0) return 70000;
+              if (h.id === 2014 || (h.name && h.name.indexOf("Ngộ Không") >= 0)) return 95000;
+              if (h.id === 1013 || h.id === 3014 || (h.name && h.name.indexOf("Na Tra") >= 0)) return 90000;
+              if (h.name && (h.name.indexOf("Lý Tịnh") >= 0 || h.name.indexOf("Ly Tinh") >= 0)) return 85000;
+              if (h.id === 3010 || (h.name && (h.name.indexOf("Đường Tam Tạng") >= 0 || h.name.indexOf("Đường Tăng") >= 0))) return 80000;
               return (h.star || 0) * 1000 + (h.lv || 1);
             };
             window.tt.combatheroSort = function(a, b) {
@@ -2671,7 +2728,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
             other_items = [
                 f"{k} x{v}" if v > 1 else k
                 for k, v in h_counts.items()
-                if k not in ("Dương Tiễn", "Tôn Ngộ Không", "Na Tra", "Đường Tam Tạng")
+                if k not in ("Dương Tiễn", "Tôn Ngộ Không", "Na Tra", "Lý Tịnh", "Đường Tam Tạng")
             ]
             other_summary = " + ".join(other_items)
             mode_tag = "♻️ TÁI SỬ DỤNG" if (reg_info and reg_info.get("reused")) else "🆕 ĐK MỚI"
@@ -2692,13 +2749,13 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
               print(f"⚠ [{completed_cnt:02d}/{count}] GIFTCODE {code_stat} | Chưa xác nhận: {'; '.join(details)}", flush=True)
             if res["isJackpot2x"]:
               jackpot_cnt += 1
-              # Chụp ảnh mục Thần Tướng (Dương Tiễn / Ngộ Không / Na Tra / Đường Tam Tạng đứng đầu Hàng 1)
+              # Chụp ảnh mục Thần Tướng (Dương Tiễn / Ngộ Không / Na Tra / Lý Tịnh / Đường Tam Tạng đứng đầu Hàng 1)
               snap_rel = await _capture_winner_screenshot_async(res)
               if snap_rel:
                 res["screenshot"] = snap_rel
               print(
                   f"\n{'='*88}\n"
-                  f"🔥🔥 [TRÚNG 2x/3x DƯƠNG TIỄN / NGỘ KHÔNG #{jackpot_cnt}] [{completed_cnt:02d}/{count}] ({mode_tag})\n"
+                  f"🔥🔥 [TRÚNG 2x/3x THẦN TƯỚNG #{jackpot_cnt}] [{completed_cnt:02d}/{count}] ({mode_tag})\n"
                   f"   🎯 TRÚNG TƯỚNG : {', '.join(res['targetHeroes'])}\n"
                   f"   🔑 TÀI KHOẢN   : {disp_acc}   |   MẬT KHẨU: {disp_pwd}   (ID Nạp: {disp_uid})\n"
                   f"   🖥️ MÁY CHỦ     : {res['serverName']}\n"
@@ -2712,11 +2769,17 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
               asyncio.create_task(_push_winner_to_sales_bot_async(res))
             else:
               single_info = []
-              if res["dtCount"] == 1:
+              if res.get("dtCount") == 1:
                 single_info.append("Dương Tiễn: 1")
-              if res["tnkCount"] == 1:
+              if res.get("tnkCount") == 1:
                 single_info.append("Tôn Ngộ Không: 1")
-              note_str = f"Có {', '.join(single_info)} (Chưa đủ 2x)" if single_info else "Không có DT/TNK (Đã bỏ qua nhanh)"
+              if res.get("ntCount") == 1:
+                single_info.append("Na Tra: 1")
+              if res.get("ltCount") == 1:
+                single_info.append("Lý Tịnh: 1")
+              if res.get("dttCount") == 1:
+                single_info.append("Đường Tăng: 1")
+              note_str = f"Có {', '.join(single_info)} (Chưa đủ 2x)" if single_info else "Không đủ 2x (Đã bỏ qua nhanh)"
               print(
                   f"✔ [{completed_cnt:02d}/{count}] [{mode_tag}] [{res['serverName']}] TK: {disp_acc} | Code: {code_stat} | MK: {disp_pwd} — {len(res['heroes5Star'])} tướng 5★ ({note_str})",
                   flush=True,
@@ -3763,12 +3826,12 @@ def print_cmd_reroll_dashboard():
   print("=" * 88)
   print(f"📊 BẢNG THEO DÕI CMD TRỰC TIẾP — SERVER MỚI NHẤT ĐỘNG ({newest_srv['name']} • {newest_srv['sid']})")
   print(f"● Trạng thái : {'⏳ ĐANG CHẠY ' + str(PARALLEL_REROLL_WORKERS) + ' LUỒNG SIÊU TỐC' if running else '✅ ĐÃ HOÀN TẤT / DỪNG'}")
-  print(f"● Tiến độ    : Đã xong {len(accs)} nick | Nổ 2x (DT / TNK / Na Tra): {len(wins_2x)} nick")
+  print(f"● Tiến độ    : Đã xong {len(accs)} nick | Nổ 2x Jackpot: {len(wins_2x)} nick")
   print(f"● Luồng hiện : {step_msg}")
   print("=" * 88)
 
   if wins_2x:
-    print("\n🔥🔥 DANH SÁCH NICK NỔ CẶP 2x DƯƠNG TIỄN / 2x TÔN NGỘ KHÔNG / 2x NA TRA (JACKPOT):")
+    print("\n🔥🔥 DANH SÁCH NICK NỔ CẶP 2x THẦN TƯỚNG (JACKPOT):")
     for idx, a in enumerate(wins_2x, 1):
       c = Counter(a.get("heroes5Star") or [])
       combos = " + ".join([f"{k} x{v}" if v > 1 else k for k, v in c.items()])
