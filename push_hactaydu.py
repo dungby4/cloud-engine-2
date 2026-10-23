@@ -7,13 +7,18 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 
 def main() -> None:
+    try:
+        if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
     parser = argparse.ArgumentParser(description="Push Hac Tay Du accounts to Telegram Shop Bot")
     parser.add_argument("--server", default="192.168.1.9", help="Server IP or hostname")
     parser.add_argument("--user", default="truong", help="SSH user")
