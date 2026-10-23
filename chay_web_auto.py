@@ -1533,10 +1533,13 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         # NẾU NICK TRÚNG >= 2x DƯƠNG TIỄN HOẶC >= 2x TÔN NGỘ KHÔNG: Tự động Skip Tân Thủ 100%
         if (dt_count >= 2) or (tnk_count >= 2):
           set_step("🔥 Trúng 2x/3x Dương Tiễn / Ngộ Không! Đang Skip Tân Thủ 100%...")
+          await ws.send(_pkt_msg(598, struct.pack(">b", 1)))
+          await ws.send(_pkt_msg(598, struct.pack(">b", 0)))
+          await ws.send(_pkt_msg(91, struct.pack(">i", 1)))
           if guide_state["gid"]:
             await ws.send(_pkt_msg(598, struct.pack(">i", guide_state["gid"])))
           t_guide_start = time.time()
-          while not guide_state["done"] and (time.time() - t_guide_start) < 7.5:
+          while not guide_state["done"] and (time.time() - t_guide_start) < 22.0:
             guide_ev.clear()
             try:
               await asyncio.wait_for(guide_ev.wait(), timeout=0.16)
