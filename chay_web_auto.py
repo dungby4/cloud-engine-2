@@ -1007,8 +1007,42 @@ REROLL_GIFTCODES = [
 ]
 
 REROLL_VAULT_FILE = os.path.join(DIRECTORY, "DAN_NICK_DA_QUAY.json")
+REROLL_HISTORY_FILE = os.path.join(DIRECTORY, "LICH_SU_QUAY.json")
+REROLL_HISTORY_LOCK = threading.Lock()
 SCREENSHOT_DIR = os.path.join(DIRECTORY, "anh_nick_trung")
 os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+
+
+def _log_roll_history(res):
+  """Lưu nhật ký lịch sử toàn diện của mọi nick quay được vào LICH_SU_QUAY.json (định dạng NDJSON / 1 dòng 1 JSON).
+  Giúp dễ dàng tra cứu, lọc tìm kiếm mọi tướng (Na Tra, Dương Tiễn, Ngộ Không, Đường Tăng...) bất cứ lúc nào."""
+  if not res or not res.get("account"):
+    return
+  try:
+    heroes = res.get("heroes5Star") or res.get("heroes") or []
+    dtt_cnt = heroes.count("Đường Tam Tạng")
+    record = {
+        "time": res.get("time") or time.strftime("%Y-%m-%d %H:%M:%S"),
+        "u": res.get("account"),
+        "p": res.get("password"),
+        "id": str(res.get("funtapId") or ""),
+        "sid": int(res.get("serverId") or 0),
+        "server": str(res.get("serverName") or ""),
+        "dt": int(res.get("dtCount") or 0),
+        "tnk": int(res.get("tnkCount") or 0),
+        "nt": int(res.get("ntCount") or 0),
+        "dtt": dtt_cnt,
+        "total_5s": len(heroes),
+        "jackpot": bool(res.get("isJackpot2x")),
+        "codes": res.get("codesClaimed", "28/28"),
+        "heroes": heroes,
+    }
+    line = json.dumps(record, ensure_ascii=False)
+    with REROLL_HISTORY_LOCK:
+      with open(REROLL_HISTORY_FILE, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+  except Exception:
+    pass
 
 REROLL_LOCK = threading.Lock()
 REUSABLE_POOL = {}  # username -> {"u": str, "p": str, "id": str, "sid": int}
@@ -2595,6 +2629,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
               REROLL_STATE["accounts"].insert(0, res)
             if not res["isJackpot2x"]:
               _save_reroll_files()
+            _log_roll_history(res)
 
             from collections import Counter
             h_counts = Counter(res["heroes5Star"])
