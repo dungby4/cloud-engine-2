@@ -1902,7 +1902,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         dt_count += 1
       if h["id"] == 2014 or "Ngộ Không" in h["name"] or h.get("name_cn") == "孙悟空":
         tnk_count += 1
-      if h["id"] in (1013, 3014) or "Na Tra" in h["name"] or h.get("name_cn") == "哪吒":
+      if h["id"] == 3014 or "Na Tra" in h["name"] or h.get("name_cn") == "哪吒":
         nt_count += 1
       if "Lý Tịnh" in h["name"] or "Ly Tinh" in h["name"] or h.get("name_cn") in ("李靖", "托塔天王"):
         lt_count += 1
@@ -2211,67 +2211,23 @@ async def _capture_winner_screenshot_async(res):
             break
         await asyncio.sleep(1.0)
 
-        # 1. TỰ ĐỘNG CHẠY NHIỆM VỤ TÂN THỦ / VƯỢT ẢI CHÍNH LÊN CẤP CHO NICK NGON (2x/3x)
-        try:
-          init_lv = await page.evaluate("() => window.H && window.H.data ? (window.H.data.lv || window.H.data.level || 1) : 1")
-          if init_lv < 5:
-            print(f"🎮 [{acc_name}] Đang tự động chạy nhiệm vụ tân thủ / vượt ải chính (Lv.{init_lv} -> Lv.5+)...", flush=True)
-            await page.evaluate("""() => {
-              if (window.HacTayDuAuto) {
-                window.HacTayDuAuto.autoCampaign = true;
-                window.HacTayDuAuto.autoSkip = true;
-                if (window.HacTayDuAuto.setSpeed) window.HacTayDuAuto.setSpeed(5);
-                window.HacTayDuAuto.triggerCampaignStart();
-              }
-            }""")
-            for sec in range(1, 36):
-              await asyncio.sleep(1.0)
-              cur_lv = await page.evaluate("() => window.H && window.H.data ? (window.H.data.lv || window.H.data.level || 1) : 1")
-              in_combat = await page.evaluate("() => !!(typeof De !== 'undefined' && De && De.isInCombat)")
-              if cur_lv >= 5 and not in_combat:
-                print(f"✅ [{acc_name}] Đã hoàn thành nhiệm vụ tân thủ! Đạt Lv.{cur_lv}", flush=True)
-                break
-              if sec % 3 == 0:
-                try:
-                  await page.mouse.click(360, 640)
-                except Exception:
-                  pass
+        # 1. Chờ thanh điều hướng chính (bt) của game sẵn sàng
+        for sec in range(25):
+          await asyncio.sleep(1.0)
+          ready = await page.evaluate("() => typeof bt !== 'undefined' && bt.getInstance && bt.getInstance().inStage && bt.getInstance().inStage()")
+          if ready:
+            break
 
-            await page.evaluate("""() => {
-              if (window.HacTayDuAuto) {
-                window.HacTayDuAuto.autoCampaign = false;
-                try { window.HacTayDuAuto.cleanSkipTutorialNow(); } catch(e) {}
-              }
-              if (window.Laya && window.Laya.Dialog) {
-                try { window.Laya.Dialog.closeAll(); } catch(e) {}
-              }
-            }""")
-            await asyncio.sleep(1.0)
-        except Exception as err_tan_thu:
-          print(f"⚠️ [{acc_name}] Lỗi khi chạy tân thủ: {err_tan_thu}", flush=True)
-
-        open_script = """() => {
-          if (window.Laya && window.Laya.Dialog) {
-            try { window.Laya.Dialog.closeAll(); } catch(e) {}
-          }
-          if (window.eb && window.eb.getInstance && window.eb.getInstance().inStage()) {
-            try { window.eb.getInstance().close(); } catch(e) {}
-          }
-          if (window.at) {
-            window.at.data = null;
-            if (window.at.guide && window.at.guide.close) {
-              try { window.at.guide.close(); } catch(e) {}
-            }
-          }
-          if (window.HacTayDuAuto && window.HacTayDuAuto.cleanSkipTutorialNow) {
-            try { window.HacTayDuAuto.cleanSkipTutorialNow(); } catch(e) {}
-          }
+        # 2. Cấu hình sort ưu tiên tướng 2x & mở tab Thần Tướng
+        await page.evaluate("""() => {
+          if (typeof at !== 'undefined') at.data = null;
+          if (typeof De !== 'undefined') De.isInCombat = false;
           if (window.tt) {
             var priorityWeight = function(h) {
               if (!h) return 0;
               if (h.id === 1014 || (h.name && h.name.indexOf("Dương Tiễn") >= 0)) return 100000;
               if (h.id === 2014 || (h.name && h.name.indexOf("Ngộ Không") >= 0)) return 95000;
-              if (h.id === 1013 || h.id === 3014 || (h.name && h.name.indexOf("Na Tra") >= 0)) return 90000;
+              if (h.id === 3014 || (h.name && h.name.indexOf("Na Tra") >= 0)) return 90000;
               if (h.name && (h.name.indexOf("Lý Tịnh") >= 0 || h.name.indexOf("Ly Tinh") >= 0)) return 85000;
               if (h.id === 3010 || (h.name && (h.name.indexOf("Đường Tam Tạng") >= 0 || h.name.indexOf("Đường Tăng") >= 0))) return 80000;
               return (h.star || 0) * 1000 + (h.lv || 1);
@@ -2280,30 +2236,32 @@ async def _capture_winner_screenshot_async(res):
               return priorityWeight(b) - priorityWeight(a);
             };
           }
-          if (window.si && window.si.getInstance) {
-            var heroPanel = window.si.getInstance();
-            heroPanel.showLoading = false;
-            heroPanel.open(0);
+          if (typeof bt !== 'undefined' && bt.getInstance) {
+            try { bt.getInstance().onTab(1); } catch(e) {}
           }
+        }""")
+
+        # 3. Chờ hero panel mount trên stage
+        for s in range(15):
+          await asyncio.sleep(1.0)
+          inst_ready = await page.evaluate("() => typeof si !== 'undefined' && si.getInstance && si.getInstance().inStage && si.getInstance().inStage()")
+          if inst_ready:
+            break
+
+        # 4. Chờ tải tranh vẽ tướng & áp dụng sort
+        await asyncio.sleep(2.5)
+        await page.evaluate("""() => {
+          try {
+            if (typeof si !== 'undefined' && si.getInstance && si.getInstance().setList) {
+              si.getInstance().setList(0, 0);
+            }
+          } catch(e) {}
           if (window.HacTayDuAuto) {
             if (window.HacTayDuAuto.layaMenu) window.HacTayDuAuto.layaMenu.visible = false;
             if (window.HacTayDuAuto.layaBtn) window.HacTayDuAuto.layaBtn.visible = false;
           }
-        }"""
-        await page.evaluate(open_script)
-        for _ in range(35):
-          await asyncio.sleep(0.4)
-          in_stage = await page.evaluate("() => !!(window.si && window.si.getInstance && window.si.getInstance().inStage())")
-          if in_stage:
-            break
-          try:
-            await page.mouse.click(360, 640)
-          except Exception:
-            pass
-          await page.evaluate(open_script)
-        await asyncio.sleep(1.0)
-        await page.evaluate("() => { try { if (window.si && window.si.getInstance && window.si.getInstance().setList) window.si.getInstance().setList(0, 0); } catch(e) {} }")
-        await asyncio.sleep(1.0)
+        }""")
+        await asyncio.sleep(0.8)
         await page.screenshot(path=out_path)
 
         # Tự động nén ảnh bằng Pillow để tối ưu dung lượng và gửi Telegram mượt mà
