@@ -2245,7 +2245,7 @@ async def _capture_winner_screenshot_async(res):
             pass
           await page.evaluate(open_script)
         await asyncio.sleep(1.0)
-        await page.evaluate("() => { if (window.si && window.si.getInstance) window.si.getInstance().setList(0, 0); }")
+        await page.evaluate("() => { try { if (window.si && window.si.getInstance && window.si.getInstance().setList) window.si.getInstance().setList(0, 0); } catch(e) {} }")
         await asyncio.sleep(1.0)
         await page.screenshot(path=out_path)
 
