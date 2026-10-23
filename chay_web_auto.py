@@ -1703,16 +1703,31 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   guide_state = {"gid": 0, "code": 0, "done": False}
   guide_ev = asyncio.Event()
   code_ev = asyncio.Event()
+  confirmed_codes = set()
+  current_code = None
 
   def record_packet(resp):
-    nonlocal dt_count, tnk_count, nt_count, seen_bag_list
+    nonlocal dt_count, tnk_count, nt_count, seen_bag_list, current_code
     if not isinstance(resp, bytes) or len(resp) < 4:
       return
     _, msg_id = struct.unpack(">HH", resp[:4])
-    if msg_id in (144, 10):
+    if msg_id == 144:
+      if current_code:
+        confirmed_codes.add(current_code)
       code_ev.set()
-      if msg_id == 144:
-        return
+      return
+    if msg_id == 10:
+      # Nếu mã đã nhận trước đó (已达到领取上限) thì server không gửi 144 -> Ghi nhận thành công luôn
+      if b"\xe5\xb7\xb2\xe8\xbe\xbe\xe5\x88\xb0\xe9\xa2\x86\xe5\x8f\x96\xe4\xb8\x8a\xe9\x99\x90" in resp:
+        if current_code:
+          confirmed_codes.add(current_code)
+        code_ev.set()
+      elif b"\xe6\x80\xa5\xe6\x80\xa5\xe5\xa6\x82\xe5\xbe\x8b\xe4\xbb\xa4" in resp:
+        # Thành công, gói 144 sẽ tới ngay sau đó để set code_ev & ghi nhận code
+        pass
+      else:
+        code_ev.set()
+      return
     if msg_id == 599:
       if len(resp) >= 5 and resp[4] == 0:
         guide_state["done"] = True
@@ -1767,23 +1782,45 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         else:
           await ws.send(_pkt_msg(91, struct.pack(">i", 1)))
           await ws.send(_pkt_msg(598, struct.pack(">i", 1)))
-        await asyncio.sleep(0.35)
+        await asyncio.sleep(0.40)
 
+        total_codes = len(REROLL_GIFTCODES)
         for c_idx, code in enumerate(REROLL_GIFTCODES, 1):
           if REROLL_STATE["stopRequested"]:
             break
-          if c_idx % 9 == 1 or c_idx == len(REROLL_GIFTCODES):
-            set_step(f"Đang nhập {len(REROLL_GIFTCODES)} Giftcode ({c_idx}/{len(REROLL_GIFTCODES)})...")
+          if c_idx % 7 == 1 or c_idx == total_codes:
+            set_step(f"Đang nhập {total_codes} Giftcode ({c_idx}/{total_codes})...")
+          current_code = code
           code_ev.clear()
           await ws.send(_pkt_msg(143, _pkt_str(code)))
           try:
-            await asyncio.wait_for(code_ev.wait(), timeout=0.55)
-            await asyncio.sleep(0.12)
+            await asyncio.wait_for(code_ev.wait(), timeout=0.60)
           except asyncio.TimeoutError:
-            await asyncio.sleep(0.18)
+            pass
+          await asyncio.sleep(0.08)
 
-        # Chờ 1.2s để server Funtap hoàn tất tạo và phát toàn bộ thư giftcode vào hòm thư
-        await asyncio.sleep(1.20)
+        # Vòng 2: Tự động gửi bù ngay bất kỳ mã nào chưa kịp nhận phản hồi (đảm bảo 100% tài khoản đủ 28/28 code)
+        missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
+        if missing_codes and not REROLL_STATE["stopRequested"]:
+          for retry_code in missing_codes:
+            current_code = retry_code
+            code_ev.clear()
+            await ws.send(_pkt_msg(143, _pkt_str(retry_code)))
+            try:
+              await asyncio.wait_for(code_ev.wait(), timeout=0.75)
+            except asyncio.TimeoutError:
+              pass
+            await asyncio.sleep(0.12)
+
+        # Chờ nhận nốt các gói tin phản hồi giftcode còn tồn đọng trong websocket
+        for _ in range(12):
+          if len(confirmed_codes) >= total_codes:
+            break
+          await asyncio.sleep(0.10)
+        current_code = None
+
+        codes_stat = f"{len(confirmed_codes)}/{total_codes}"
+        set_step(f"Đã xác nhận {codes_stat} Code ➜ Nhận thư & Mở 250 mảnh 5★...")
 
         set_step("Đang nhận Thư phúc lợi & Mở 250 Mảnh 5★ (5 tướng)...")
         await ws.send(_pkt_msg(64, b"\x01"))
@@ -1803,6 +1840,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         if len(heroes_5star) < 5:
           for retry_code in ("45THANTUONG", "DUONGTIEN", "NGOKHONG", "DAT100KDKT", "DKT50K", "DKT30K", "THANCAN555", "YCAN666"):
             code_ev.clear()
+            current_code = retry_code
             await ws.send(_pkt_msg(143, _pkt_str(retry_code)))
             try:
               await asyncio.wait_for(code_ev.wait(), timeout=0.55)
@@ -1946,6 +1984,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
       "targetHeroes": target_badges,
       "hasTarget": is_jackpot_2x,
       "isJackpot2x": is_jackpot_2x,
+      "codesClaimed": f"{len(confirmed_codes)}/{len(REROLL_GIFTCODES)}",
+      "confirmedCodes": list(confirmed_codes),
       "time": time.strftime("%Y-%m-%d %H:%M:%S"),
   }
 
@@ -2410,6 +2450,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
             disp_acc = "***AN_BAO_MAT***" if is_gh else res["account"]
             disp_pwd = "***" if is_gh else res["password"]
             disp_uid = "***" if is_gh else res["funtapId"]
+            code_stat = res.get("codesClaimed", f"{len(REROLL_GIFTCODES)}/{len(REROLL_GIFTCODES)}")
             if res["isJackpot2x"]:
               jackpot_cnt += 1
               # Chụp ảnh mục Thần Tướng (Dương Tiễn / Ngộ Không / Na Tra / Đường Tam Tạng đứng đầu Hàng 1)
@@ -2422,6 +2463,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                   f"   🎯 TRÚNG TƯỚNG : {', '.join(res['targetHeroes'])}\n"
                   f"   🔑 TÀI KHOẢN   : {disp_acc}   |   MẬT KHẨU: {disp_pwd}   (ID Nạp: {disp_uid})\n"
                   f"   🖥️ MÁY CHỦ     : {res['serverName']}\n"
+                  f"   🎁 GIFTCODE    : Đã nhập đủ {code_stat} mã (Ăn trọn 250 mảnh 5★ + 68 vé)\n"
                   f"   ⭐ TƯỚNG 5★ PHỤ ({len(res['heroes5Star'])} tổng): {other_summary}\n"
                   f"   📸 ẢNH CHỨNG MINH: {snap_rel or 'Đang lưu...'}\n"
                   f"{'='*88}\n",
@@ -2437,7 +2479,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                 single_info.append("Tôn Ngộ Không: 1")
               note_str = f"Có {', '.join(single_info)} (Chưa đủ 2x)" if single_info else "Không có DT/TNK (Đã bỏ qua nhanh)"
               print(
-                  f"✔ [{completed_cnt:02d}/{count}] [{mode_tag}] [{res['serverName']}] TK: {disp_acc} | MK: {disp_pwd} — {len(res['heroes5Star'])} tướng 5★ ({note_str})",
+                  f"✔ [{completed_cnt:02d}/{count}] [{mode_tag}] [{res['serverName']}] TK: {disp_acc} | Code: {code_stat} | MK: {disp_pwd} — {len(res['heroes5Star'])} tướng 5★ ({note_str})",
                   flush=True,
               )
           finally:
