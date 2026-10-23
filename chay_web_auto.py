@@ -1291,16 +1291,23 @@ _save_reroll_files()
 def fetch_latest_server_live():
   """Fetches the live server list directly from Funtap API and returns the newest server (highest sid/id)."""
   urls = [
+      "https://funtap-xy.xinliugame.net/game/getServerList2.php?lst=new&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
+      "https://funtap-xy.xinliugame.net/game/getServerList2.php?lst=all&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
       "https://funtap-xy.ridvqqxa.com/game/getServerList2.php?lst=new&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
       "https://funtap-xy.ridvqqxa.com/game/getServerList2.php?lst=all&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
-      "http://funtap-xy.ridvqqxa.com/game/getServerList2.php?lst=new&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
   ]
   ctx = ssl._create_unverified_context()
   last_err = None
 
   for url in urls:
     try:
-      req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
+      req = urllib.request.Request(
+          url,
+          headers={
+              "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
+              "Accept": "application/json, text/plain, */*",
+          },
+      )
       with urllib.request.urlopen(req, timeout=8, context=ctx) as resp:
         raw = resp.read().decode("utf-8", errors="ignore")
       arr = json.loads(raw)
@@ -1370,8 +1377,6 @@ def fetch_latest_server_live():
       last_err = e
       continue
 
-  if last_err:
-    print(f"⚠️ [Mạng API Funtap] Không thể tải danh sách server mới: {last_err}. Dùng server mặc định: {ALL_SERVERS_DATA[0]['name']}", flush=True)
   return ALL_SERVERS_DATA[0]
 
 
