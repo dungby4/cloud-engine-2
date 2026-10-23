@@ -3439,11 +3439,26 @@ class DAutoAIRequestHandler(SimpleHTTPRequestHandler):
     sid_str = params.get("sid", ["610039"])[0].strip()
     direct_mode = int(params.get("direct", ["0"])[0] or "0")
 
-    srv_info = ALL_SERVERS_DATA[0]
+    srv_info = None
     for s in ALL_SERVERS_DATA:
       if str(s["sid"]) == sid_str:
         srv_info = s
         break
+    if not srv_info and sid_str.isdigit():
+      sid_num = int(sid_str)
+      srv_idx = sid_num - 610000 if sid_num > 610000 else sid_num
+      c_num = srv_idx - 70 if srv_idx >= 70 else (srv_idx - 60 if srv_idx >= 60 else srv_idx)
+      srv_info = {
+          "sid": sid_str,
+          "id": srv_idx,
+          "name": f"[S{srv_idx} Mới Nhất] Nữ Nhi Quốc-S{c_num}",
+          "server": f"wss://wss-funtap-xy.xinliugame.net:{srv_idx + 9026}/",
+          "status": "1",
+          "recommend": 1,
+          "cluster": "Nữ Nhi Quốc",
+      }
+    if not srv_info:
+      srv_info = ALL_SERVERS_DATA[0]
 
     ak_info = fetch_fresh_authkey(acc)
     ts = ak_info["timestamp"]
