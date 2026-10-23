@@ -1446,9 +1446,10 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
     if not isinstance(resp, bytes) or len(resp) < 4:
       return
     _, msg_id = struct.unpack(">HH", resp[:4])
-    if msg_id == 144:
+    if msg_id in (144, 10):
       code_ev.set()
-      return
+      if msg_id == 144:
+        return
     if msg_id == 599:
       if len(resp) >= 5 and resp[4] == 0:
         guide_state["done"] = True
@@ -1500,6 +1501,9 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         if guide_state["gid"]:
           await ws.send(_pkt_msg(91, struct.pack(">i", guide_state["gid"])))
           await ws.send(_pkt_msg(598, struct.pack(">i", guide_state["gid"])))
+        else:
+          await ws.send(_pkt_msg(91, struct.pack(">i", 1)))
+          await ws.send(_pkt_msg(598, struct.pack(">i", 1)))
         await asyncio.sleep(0.35)
 
         for c_idx, code in enumerate(REROLL_GIFTCODES, 1):
