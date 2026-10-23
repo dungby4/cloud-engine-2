@@ -38,6 +38,20 @@ def _ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
   return _orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
 socket.getaddrinfo = _ipv4_getaddrinfo
 
+# Silence noisy Windows ProactorEventLoop WinError 10054 on remote connection resets
+if sys.platform == "win32":
+  try:
+    from asyncio.proactor_events import _ProactorBasePipeTransport
+    _orig_call_conn_lost = _ProactorBasePipeTransport._call_connection_lost
+    def _safe_call_connection_lost(self, exc):
+      try:
+        _orig_call_conn_lost(self, exc)
+      except (ConnectionResetError, ConnectionAbortedError, OSError):
+        pass
+    _ProactorBasePipeTransport._call_connection_lost = _safe_call_connection_lost
+  except Exception:
+    pass
+
 import threading
 import time
 import urllib.error
@@ -2319,6 +2333,18 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
     import concurrent.futures
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    def _silent_asyncio_exc_handler(lp, ctx):
+      ex = ctx.get("exception")
+      if isinstance(ex, (ConnectionResetError, ConnectionAbortedError, OSError)):
+        return
+      msg = str(ctx.get("message") or "")
+      if "WinError 10054" in str(ex) or "connection_lost" in msg:
+        return
+      try:
+        lp.default_exception_handler(ctx)
+      except Exception:
+        pass
+    loop.set_exception_handler(_silent_asyncio_exc_handler)
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=32)
     loop.set_default_executor(executor)
 
