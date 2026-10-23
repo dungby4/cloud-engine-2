@@ -1420,12 +1420,16 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   seen_bag_list = False
   guide_state = {"gid": 0, "code": 0, "done": False}
   guide_ev = asyncio.Event()
+  code_ev = asyncio.Event()
 
   def record_packet(resp):
     nonlocal dt_count, tnk_count, nt_count, seen_bag_list
     if not isinstance(resp, bytes) or len(resp) < 4:
       return
     _, msg_id = struct.unpack(">HH", resp[:4])
+    if msg_id == 144:
+      code_ev.set()
+      return
     if msg_id == 599:
       if len(resp) >= 5 and resp[4] == 0:
         guide_state["done"] = True
@@ -1477,18 +1481,23 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         if guide_state["gid"]:
           await ws.send(_pkt_msg(91, struct.pack(">i", guide_state["gid"])))
           await ws.send(_pkt_msg(598, struct.pack(">i", guide_state["gid"])))
-        await asyncio.sleep(0.12)
+        await asyncio.sleep(0.35)
 
         for c_idx, code in enumerate(REROLL_GIFTCODES, 1):
           if REROLL_STATE["stopRequested"]:
             break
           if c_idx % 9 == 1 or c_idx == len(REROLL_GIFTCODES):
             set_step(f"Đang nhập 27 Giftcode ({c_idx}/{len(REROLL_GIFTCODES)})...")
+          code_ev.clear()
           await ws.send(_pkt_msg(143, _pkt_str(code)))
-          await asyncio.sleep(0.28)
+          try:
+            await asyncio.wait_for(code_ev.wait(), timeout=0.55)
+            await asyncio.sleep(0.12)
+          except asyncio.TimeoutError:
+            await asyncio.sleep(0.18)
 
-        # Chờ 1.0s để server Funtap hoàn tất tạo và phát toàn bộ thư giftcode vào hòm thư
-        await asyncio.sleep(1.0)
+        # Chờ 1.2s để server Funtap hoàn tất tạo và phát toàn bộ thư giftcode vào hòm thư
+        await asyncio.sleep(1.20)
 
         set_step("Đang nhận Thư phúc lợi & Mở 250 Mảnh 5★ (5 tướng)...")
         await ws.send(_pkt_msg(64, b"\x01"))
@@ -1507,8 +1516,13 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         # Nếu chưa mở đủ 5 tướng từ 250 mảnh (do server trễ), mở vét nhanh
         if len(heroes_5star) < 5:
           for retry_code in ("45THANTUONG", "DUONGTIEN", "NGOKHONG", "DAT100KDKT", "DKT50K", "DKT30K", "THANCAN555", "YCAN666"):
+            code_ev.clear()
             await ws.send(_pkt_msg(143, _pkt_str(retry_code)))
-            await asyncio.sleep(0.25)
+            try:
+              await asyncio.wait_for(code_ev.wait(), timeout=0.55)
+              await asyncio.sleep(0.12)
+            except asyncio.TimeoutError:
+              await asyncio.sleep(0.18)
           await ws.send(_pkt_msg(61))
           await asyncio.sleep(0.35)
           for item_id, qty in [(703, 1), (704, 2), (704, 1), (1012, 1)]:
