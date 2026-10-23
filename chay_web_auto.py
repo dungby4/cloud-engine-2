@@ -1970,7 +1970,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                     "prevSid": int(item.get("sid") or 0),
                 }
 
-        # Đăng ký nick mới 100% với bộ điều tốc an toàn 4.8s (tối đa 12 req/phút, luôn dưới giới hạn 15 của Funtap)
+        # Đăng ký nick mới 100% với bộ điều tốc an toàn 9.6s (tối đa 12.5 req/phút, luôn dưới giới hạn cứng 15 của Funtap Nginx)
         while True:
           with REROLL_LOCK:
             if REROLL_STATE["stopRequested"]:
@@ -1978,8 +1978,8 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
           with reg_lock:
             now_t = time.time()
             diff = now_t - last_reg_ts[0]
-            if diff < 4.8:
-              time.sleep(4.8 - diff)
+            if diff < 9.6:
+              time.sleep(9.6 - diff)
             last_reg_ts[0] = time.time()
 
             with num_lock:
@@ -2000,8 +2000,8 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                   reg["reused"] = False
                   return reg
             elif reg.get("rateLimited"):
-              wait_sec = int(reg.get("retryAfter") or 25) + 3
-              print(f"⚠️ [Funtap 429 Rate Limit] IP bị giới hạn (15 req/phút). Đang nghỉ {wait_sec}s theo đúng Retry-After để hồi phục hoàn toàn...", flush=True)
+              wait_sec = max(60, int(reg.get("retryAfter") or 25) + 5)
+              print(f"⚠️ [Funtap 429 Rate Limit] IP bị giới hạn (15 req/phút). Đang nghỉ {wait_sec}s để hồi phục hoàn toàn cửa sổ rate limit...", flush=True)
               time.sleep(wait_sec)
               last_reg_ts[0] = time.time()
             elif reg.get("taken"):
@@ -2009,8 +2009,9 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                 num_cursor[0] += 1
               time.sleep(0.1)
             elif reg.get("recaptchaFailed"):
-              print(f"⚠️ [Funtap reCAPTCHA] Đang chờ 5s để giải phóng hạn mức IP...", flush=True)
-              time.sleep(5.0)
+              print(f"⚠️ [Funtap reCAPTCHA] Đang chờ 30s để giải phóng hạn mức IP...", flush=True)
+              time.sleep(30.0)
+              last_reg_ts[0] = time.time()
             else:
               err_code = reg.get("error")
               print(f"⚠️ [Funtap Error] Chưa thể đăng ký {cand_name} ({err_code}). Nghỉ 3s thử lại...", flush=True)
