@@ -139,7 +139,8 @@ COMMAND_QUEUE = []
 # Complete Official Live Server List across all Clusters of Hắc Tây Du Funtap (Auto-synced from Funtap API)
 ALL_SERVERS_DATA = [
     # Cụm 8: Nữ Nhi Quốc (S71 -> S80)
-    {"sid": "610072", "id": 72, "name": "[S72 Mới Nhất] Nữ Nhi Quốc-S2", "server": "wss://wss-funtap-xy.xinliugame.net:9098/", "status": "1", "recommend": 1, "cluster": "Nữ Nhi Quốc"},
+    {"sid": "610073", "id": 73, "name": "[S73 Mới Nhất] Nữ Nhi Quốc-S3", "server": "wss://wss-funtap-xy.xinliugame.net:9099/", "status": "1", "recommend": 1, "cluster": "Nữ Nhi Quốc"},
+    {"sid": "610072", "id": 72, "name": "[S72] Nữ Nhi Quốc-S2", "server": "wss://wss-funtap-xy.xinliugame.net:9098/", "status": "2", "recommend": 0, "cluster": "Nữ Nhi Quốc"},
     {"sid": "610071", "id": 71, "name": "[S71] Nữ Nhi Quốc-S1", "server": "wss://wss-funtap-xy.xinliugame.net:9097/", "status": "2", "recommend": 0, "cluster": "Nữ Nhi Quốc"},
     # Cụm 7: Xa Trì Quốc (S61 -> S70)
     {"sid": "610070", "id": 70, "name": "[S70] Xa Trì Quốc-S10", "server": "wss://wss-funtap-xy.xinliugame.net:9096/", "status": "2", "recommend": 0, "cluster": "Xa Trì Quốc"},
@@ -506,6 +507,16 @@ def funtap_register_real_account(username, password="tphtd123"):
         return {"ok": False, "taken": True, "error": "Tên tài khoản đã tồn tại trên Funtap"}
       # Nếu lỗi do token/recaptcha tạm thời thì thử lại cùng tên tài khoản đó
       time.sleep(0.25)
+    except urllib.error.HTTPError as he:
+      if he.code == 429:
+        try:
+          retry_after = int(he.headers.get("retry-after", 20))
+        except Exception:
+          retry_after = 20
+        return {"ok": False, "rateLimited": True, "retryAfter": retry_after, "error": f"HTTP Error 429: Too Many Requests (retry-after: {retry_after}s)"}
+      if attempt == 2:
+        return {"ok": False, "error": str(he)}
+      time.sleep(0.5)
     except Exception as e:
       if attempt == 2:
         return {"ok": False, "error": str(e)}
@@ -753,9 +764,11 @@ def _normalize_base_prefix(prefix=None):
 
 
 def _format_vip_username(base_prefix, seq_num):
-  """Định dạng <prefix>_a_001 -> <prefix>_a_999, sau đó sang <prefix>_b_001..."""
+  """Định dạng <prefix>_a_001 -> <prefix>_a_999, hoặc <prefix>_001 nếu prefix dạng htdab, htdac..."""
   base = _normalize_base_prefix(base_prefix)
   seq = max(1, int(seq_num))
+  if "_" not in base:
+    return f"{base}_{seq:03d}" if seq < 1000 else f"{base}_{seq}"
   batch_idx = (seq - 1) // 999
   num_in_batch = ((seq - 1) % 999) + 1
   letters = _batch_idx_to_letters(batch_idx)
@@ -764,12 +777,16 @@ def _format_vip_username(base_prefix, seq_num):
 
 def _parse_vip_seq(username, base_prefix=None):
   base = _normalize_base_prefix(base_prefix)
-  m = re.match(rf"^{re.escape(base)}_([a-z]+)_(\d{{3}})$", str(username or "").strip(), flags=re.I)
-  if not m:
-    return 0
-  b_idx = _letters_to_batch_idx(m.group(1))
-  num = int(m.group(2))
-  return b_idx * 999 + num
+  u_str = str(username or "").strip()
+  m1 = re.match(rf"^{re.escape(base)}_(\d+)$", u_str, flags=re.I)
+  if m1:
+    return int(m1.group(1))
+  m2 = re.match(rf"^{re.escape(base)}_([a-z]+)_(\d{{3}})$", u_str, flags=re.I)
+  if m2:
+    b_idx = _letters_to_batch_idx(m2.group(1))
+    num = int(m2.group(2))
+    return b_idx * 999 + num
+  return 0
 
 
 TAYDU_PROUD_PREFIXES = [
@@ -1291,6 +1308,8 @@ _save_reroll_files()
 def fetch_latest_server_live():
   """Fetches the live server list directly from Funtap API and returns the newest server (highest sid/id)."""
   urls = [
+      "http://100.68.248.22:8088/api/server_list",
+      "https://152-69-209-107.sslip.io/api/server_list",
       "https://funtap-xy.xinliugame.net/game/getServerList2.php?lst=new&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
       "https://funtap-xy.xinliugame.net/game/getServerList2.php?lst=all&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
       "https://funtap-xy.ridvqqxa.com/game/getServerList2.php?lst=new&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
@@ -1902,6 +1921,8 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
 
       num_lock = threading.Lock()
       num_cursor = [max(1, max_seen_seq + 1)]
+      reg_lock = threading.Lock()
+      last_reg_ts = [0.0]
 
       def _acquire_or_register_account(target_sid):
         """Ưu tiên 1: Nếu có server mới (sid > phôi cũ) -> Bốc ngay phôi nick cũ chưa quay ở target_sid (0ms).
@@ -1929,23 +1950,45 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
           with REROLL_LOCK:
             if REROLL_STATE["stopRequested"]:
               return None
-          with num_lock:
-            while _format_vip_username(base_prefix, num_cursor[0]) in existing_names:
-              num_cursor[0] += 1
-            cand_name = _format_vip_username(base_prefix, num_cursor[0])
-            existing_names.add(cand_name)
-            num_cursor[0] += 1
-          strong_pwd = _gen_strong_password(10)
-          reg = funtap_register_real_account(cand_name, strong_pwd)
-          if reg.get("ok"):
-            fid = str(reg.get("accountId") or "")
+          with reg_lock:
+            # Giãn cách tạo nick an toàn 5.0s giữa các luồng để chống triệt để hạn mức 15 req/phút (HTTP 429) của Funtap
+            now_t = time.time()
+            diff = now_t - last_reg_ts[0]
+            if diff < 5.0:
+              time.sleep(5.0 - diff)
+            last_reg_ts[0] = time.time()
+
             with num_lock:
-              if fid and fid not in used_funtap_ids:
-                used_funtap_ids.add(fid)
-                with REROLL_LOCK:
-                  IN_FLIGHT_USERS.add(cand_name)
-                reg["reused"] = False
-                return reg
+              while _format_vip_username(base_prefix, num_cursor[0]) in existing_names:
+                num_cursor[0] += 1
+              cand_name = _format_vip_username(base_prefix, num_cursor[0])
+              existing_names.add(cand_name)
+              num_cursor[0] += 1
+            strong_pwd = _gen_strong_password(10)
+            reg = funtap_register_real_account(cand_name, strong_pwd)
+            if reg.get("ok"):
+              fid = str(reg.get("accountId") or "")
+              with num_lock:
+                if fid and fid not in used_funtap_ids:
+                  used_funtap_ids.add(fid)
+                  with REROLL_LOCK:
+                    IN_FLIGHT_USERS.add(cand_name)
+                  reg["reused"] = False
+                  return reg
+            elif reg.get("rateLimited"):
+              wait_sec = int(reg.get("retryAfter") or 20) + 2
+              print(f"⚠️ [Funtap 429 Rate Limit] IP bị giới hạn (15 req/phút). Đang nghỉ {wait_sec}s theo đúng Retry-After để hồi phục hoàn toàn...", flush=True)
+              time.sleep(wait_sec)
+              last_reg_ts[0] = time.time()
+            elif reg.get("taken"):
+              # Tên đã tồn tại trên Funtap, nhảy bước 20 số để nhanh chóng vượt qua dải số nick cũ
+              with num_lock:
+                num_cursor[0] += 20
+              time.sleep(0.1)
+            else:
+              err_code = reg.get("error")
+              print(f"⚠️ [Funtap Error] Chưa thể đăng ký {cand_name} ({err_code}). Nghỉ 3s thử lại...", flush=True)
+              time.sleep(3.0)
 
       completed_cnt = 0
       jackpot_cnt = 0
