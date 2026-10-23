@@ -2168,17 +2168,26 @@ async def _capture_winner_screenshot_async(res):
                 window.HacTayDuAuto.triggerCampaignStart();
               }
             }""")
-            for sec in range(1, 14):
+            for sec in range(1, 36):
               await asyncio.sleep(1.0)
               cur_lv = await page.evaluate("() => window.H && window.H.data ? (window.H.data.lv || window.H.data.level || 1) : 1")
               in_combat = await page.evaluate("() => !!(typeof De !== 'undefined' && De && De.isInCombat)")
               if cur_lv >= 5 and not in_combat:
                 print(f"✅ [{acc_name}] Đã hoàn thành nhiệm vụ tân thủ! Đạt Lv.{cur_lv}", flush=True)
                 break
+              if sec % 3 == 0:
+                try:
+                  await page.mouse.click(360, 640)
+                except Exception:
+                  pass
+
             await page.evaluate("""() => {
               if (window.HacTayDuAuto) {
                 window.HacTayDuAuto.autoCampaign = false;
                 try { window.HacTayDuAuto.cleanSkipTutorialNow(); } catch(e) {}
+              }
+              if (window.Laya && window.Laya.Dialog) {
+                try { window.Laya.Dialog.closeAll(); } catch(e) {}
               }
             }""")
             await asyncio.sleep(1.0)
@@ -2186,10 +2195,20 @@ async def _capture_winner_screenshot_async(res):
           print(f"⚠️ [{acc_name}] Lỗi khi chạy tân thủ: {err_tan_thu}", flush=True)
 
         open_script = """() => {
-          if (window.eb && window.eb.getInstance && window.eb.getInstance().inStage()) window.eb.getInstance().close();
+          if (window.Laya && window.Laya.Dialog) {
+            try { window.Laya.Dialog.closeAll(); } catch(e) {}
+          }
+          if (window.eb && window.eb.getInstance && window.eb.getInstance().inStage()) {
+            try { window.eb.getInstance().close(); } catch(e) {}
+          }
           if (window.at) {
             window.at.data = null;
-            if (window.at.guide && window.at.guide.close) window.at.guide.close();
+            if (window.at.guide && window.at.guide.close) {
+              try { window.at.guide.close(); } catch(e) {}
+            }
+          }
+          if (window.HacTayDuAuto && window.HacTayDuAuto.cleanSkipTutorialNow) {
+            try { window.HacTayDuAuto.cleanSkipTutorialNow(); } catch(e) {}
           }
           if (window.tt) {
             var priorityWeight = function(h) {
@@ -2215,16 +2234,32 @@ async def _capture_winner_screenshot_async(res):
           }
         }"""
         await page.evaluate(open_script)
-        for _ in range(30):
+        for _ in range(35):
           await asyncio.sleep(0.4)
           in_stage = await page.evaluate("() => !!(window.si && window.si.getInstance && window.si.getInstance().inStage())")
           if in_stage:
             break
+          try:
+            await page.mouse.click(360, 640)
+          except Exception:
+            pass
           await page.evaluate(open_script)
         await asyncio.sleep(1.0)
         await page.evaluate("() => { if (window.si && window.si.getInstance) window.si.getInstance().setList(0, 0); }")
         await asyncio.sleep(1.0)
         await page.screenshot(path=out_path)
+
+        # Tự động nén ảnh bằng Pillow để tối ưu dung lượng và gửi Telegram mượt mà
+        try:
+          from PIL import Image
+          with Image.open(out_path) as im:
+            p_im = im.convert("P", palette=Image.ADAPTIVE, colors=256)
+            p_im.save(out_path, format="PNG", optimize=True)
+            jpg_path = os.path.splitext(out_path)[0] + ".jpg"
+            im.convert("RGB").save(jpg_path, format="JPEG", quality=82, optimize=True)
+        except Exception as e_compress:
+          print(f"⚠️ [{acc_name}] Không thể nén ảnh: {e_compress}", flush=True)
+
         await browser.close()
         return rel_path
     except Exception as e:

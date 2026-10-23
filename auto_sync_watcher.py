@@ -116,11 +116,23 @@ def main() -> None:
                         continue
 
                     try:
-                        photo_b64 = base64.b64encode(photo_candidate.read_bytes()).decode("ascii")
-                        print(f"   📸 Đã đính kèm ảnh: {photo_candidate.name}")
+                        from PIL import Image
+                        import io
+                        with Image.open(photo_candidate) as img:
+                            rgb = img.convert("RGB")
+                            buf = io.BytesIO()
+                            rgb.save(buf, format="JPEG", quality=82, optimize=True)
+                            img_bytes = buf.getvalue()
+                        photo_b64 = base64.b64encode(img_bytes).decode("ascii")
+                        print(f"   📸 Đã nén JPEG & đính kèm ảnh ({len(img_bytes)//1024} KB): {photo_candidate.name}")
                     except Exception as e:
-                        print(f"   ⚠️ Lỗi đọc ảnh: {e}")
-                        continue
+                        try:
+                            raw_b = photo_candidate.read_bytes()
+                            photo_b64 = base64.b64encode(raw_b).decode("ascii")
+                            print(f"   📸 Đã đính kèm ảnh gốc ({len(raw_b)//1024} KB): {photo_candidate.name}")
+                        except Exception as e2:
+                            print(f"   ⚠️ Lỗi đọc ảnh: {e2}")
+                            continue
 
                     # Send payload to Webhook
                     payload = {
