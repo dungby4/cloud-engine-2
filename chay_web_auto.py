@@ -959,8 +959,8 @@ REROLL_GIFTCODES = [
     # Ưu tiên gửi 9 Code chứa 250 Mảnh Tướng 5★ lên đầu tiên để Server trả mảnh về túi ngay lập tức
     "45THANTUONG", "DUONGTIEN", "NGOKHONG", "NATRA",
     "DAT100KDKT", "DKT50K", "DKT30K", "THANCAN555", "YCAN666",
-    # Các Code Vé Quay Thiên Mệnh, Vé Tam Giới & KNB
-    "HACTAYDU888", "TAYDUKI", "CHUONGCAM", "HTDCC999",
+    # Các Code Vé Quay Thiên Mệnh, Vé Tam Giới, KNB & Code Tri Ân mới nhất
+    "TOP1STORE", "HACTAYDU888", "TAYDUKI", "CHUONGCAM", "HTDCC999",
     "HOICHIEUTROIMUA", "THUANPHAM", "VAN97", "HOANGDZ",
     "NHANCAN111", "NHICAN222", "TICAN333", "THIETCAN444",
     "DKT5K", "DKT10K", "DKT20K", "CCC2026", "NGOCKEN", "DOITAC666"
@@ -1769,7 +1769,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
           if REROLL_STATE["stopRequested"]:
             break
           if c_idx % 9 == 1 or c_idx == len(REROLL_GIFTCODES):
-            set_step(f"Đang nhập 27 Giftcode ({c_idx}/{len(REROLL_GIFTCODES)})...")
+            set_step(f"Đang nhập {len(REROLL_GIFTCODES)} Giftcode ({c_idx}/{len(REROLL_GIFTCODES)})...")
           code_ev.clear()
           await ws.send(_pkt_msg(143, _pkt_str(code)))
           try:

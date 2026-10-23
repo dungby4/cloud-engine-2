@@ -13,7 +13,7 @@
     bot.aiPluginVersion = "7.9-ANTI-DROP-550MS";
     bot.version = "7.9";
     bot.giftcodes = [
-      "HACTAYDU888", "TAYDUKI", "CHUONGCAM", "HTDCC999",
+      "TOP1STORE", "HACTAYDU888", "TAYDUKI", "CHUONGCAM", "HTDCC999",
       "HOICHIEUTROIMUA", "45THANTUONG", "DUONGTIEN", "NATRA",
       "NGOKHONG", "THUANPHAM", "VAN97", "HOANGDZ",
       "NHANCAN111", "NHICAN222", "TICAN333", "THIETCAN444",
