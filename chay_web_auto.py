@@ -2056,16 +2056,29 @@ async def _capture_winner_screenshot_async(res):
     rel_path = f"anh_nick_trung/{acc_name}_S{srv_num}.png"
     out_path = os.path.join(DIRECTORY, "anh_nick_trung", f"{acc_name}_S{srv_num}.png")
 
-    chrome_paths = [
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-    ]
-    exe_path = next((p for p in chrome_paths if os.path.exists(p)), None)
+    exe_path = os.environ.get("PLAYWRIGHT_CHROME_PATH")
+    if not exe_path and sys.platform == "win32":
+      chrome_paths = [
+          r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+          r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+          r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+          r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+      ]
+      exe_path = next((p for p in chrome_paths if os.path.exists(p)), None)
     try:
+      os.makedirs(os.path.dirname(out_path), exist_ok=True)
       async with async_playwright() as p:
-        launch_kwargs = {"headless": True, "args": ["--mute-audio", "--disable-gpu-vsync"]}
+        launch_kwargs = {
+            "headless": True,
+            "args": [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--mute-audio",
+                "--disable-gpu",
+                "--disable-gpu-vsync",
+            ],
+        }
         if exe_path:
           launch_kwargs["executable_path"] = exe_path
         browser = await p.chromium.launch(**launch_kwargs)
@@ -2120,7 +2133,8 @@ async def _capture_winner_screenshot_async(res):
         await page.screenshot(path=out_path)
         await browser.close()
         return rel_path
-    except Exception:
+    except Exception as e:
+      print(f"⚠️ [Screenshot Error] Không thể chụp ảnh cho {acc_name}: {e}", flush=True)
       return ""
 
 
