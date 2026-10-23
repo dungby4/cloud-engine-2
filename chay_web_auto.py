@@ -2091,6 +2091,37 @@ async def _capture_winner_screenshot_async(res):
           if cnt > 0:
             break
         await asyncio.sleep(1.0)
+
+        # 1. TỰ ĐỘNG CHẠY NHIỆM VỤ TÂN THỦ / VƯỢT ẢI CHÍNH LÊN CẤP CHO NICK NGON (2x/3x)
+        try:
+          init_lv = await page.evaluate("() => window.H && window.H.data ? (window.H.data.lv || window.H.data.level || 1) : 1")
+          if init_lv < 5:
+            print(f"🎮 [{acc_name}] Đang tự động chạy nhiệm vụ tân thủ / vượt ải chính (Lv.{init_lv} -> Lv.5+)...", flush=True)
+            await page.evaluate("""() => {
+              if (window.HacTayDuAuto) {
+                window.HacTayDuAuto.autoCampaign = true;
+                window.HacTayDuAuto.autoSkip = true;
+                if (window.HacTayDuAuto.setSpeed) window.HacTayDuAuto.setSpeed(5);
+                window.HacTayDuAuto.triggerCampaignStart();
+              }
+            }""")
+            for sec in range(1, 14):
+              await asyncio.sleep(1.0)
+              cur_lv = await page.evaluate("() => window.H && window.H.data ? (window.H.data.lv || window.H.data.level || 1) : 1")
+              in_combat = await page.evaluate("() => !!(typeof De !== 'undefined' && De && De.isInCombat)")
+              if cur_lv >= 5 and not in_combat:
+                print(f"✅ [{acc_name}] Đã hoàn thành nhiệm vụ tân thủ! Đạt Lv.{cur_lv}", flush=True)
+                break
+            await page.evaluate("""() => {
+              if (window.HacTayDuAuto) {
+                window.HacTayDuAuto.autoCampaign = false;
+                try { window.HacTayDuAuto.cleanSkipTutorialNow(); } catch(e) {}
+              }
+            }""")
+            await asyncio.sleep(1.0)
+        except Exception as err_tan_thu:
+          print(f"⚠️ [{acc_name}] Lỗi khi chạy tân thủ: {err_tan_thu}", flush=True)
+
         open_script = """() => {
           if (window.eb && window.eb.getInstance && window.eb.getInstance().inStage()) window.eb.getInstance().close();
           if (window.at) {
