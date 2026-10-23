@@ -2435,7 +2435,8 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                 }
               REROLL_STATE["reusableCount"] = len(REUSABLE_POOL)
               REROLL_STATE["accounts"].insert(0, res)
-            _save_reroll_files()
+            if not res["isJackpot2x"]:
+              _save_reroll_files()
 
             from collections import Counter
             h_counts = Counter(res["heroes5Star"])

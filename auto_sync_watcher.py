@@ -23,7 +23,6 @@ def main() -> None:
     except Exception:
         pass
 
-    base_dir = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description="Tự động giám sát và bơm nick Hắc Tây Du 24/7")
     parser.add_argument(
         "--url",
@@ -35,8 +34,8 @@ def main() -> None:
         default="d57be08c4bbbc9c7feda86285611ee41fc8016d4f1bf4a1a7a60502d123b0ab3",
         help="Mã bí mật xác thực webhook",
     )
-    parser.add_argument("--txt", default=str(base_dir / "DAN_NICK_TRUNG_TUONG.txt"), help="File nick cần theo dõi")
-    parser.add_argument("--photos", default=str(base_dir / "anh_nick_trung"), help="Thư mục ảnh")
+    parser.add_argument("--txt", default="DAN_NICK_TRUNG_TUONG.txt", help="File nick cần theo dõi")
+    parser.add_argument("--photos", default="anh_nick_trung", help="Thư mục ảnh")
     parser.add_argument("--poll-interval", type=float, default=3.0, help="Số giây kiểm tra lại file")
     args = parser.parse_args()
 
@@ -46,10 +45,10 @@ def main() -> None:
 
     # Fallback to local tool directory
     if not txt_path.exists():
-        alt_txt = base_dir / "DAN_NICK_TRUNG_TUONG.txt"
+        alt_txt = Path(r"D:\tools\HacTayDu_Web_Auto_v79\DAN_NICK_TRUNG_TUONG.txt")
         if alt_txt.exists():
             txt_path = alt_txt
-            photos_dir = base_dir / "anh_nick_trung"
+            photos_dir = Path(r"D:\tools\HacTayDu_Web_Auto_v79\anh_nick_trung")
             state_file = txt_path.parent / ".synced_accounts.txt"
 
     print("==================================================")
@@ -101,13 +100,18 @@ def main() -> None:
                     # Find photo and encode base64
                     photo_b64 = None
                     photo_candidate = photos_dir / photo_name
-                    if not photo_candidate.exists():
-                        # Try globbing
-                        matches = list(photos_dir.glob(f"*{acc}*.png"))
-                        if matches:
-                            photo_candidate = matches[0]
+                    if photo_name == "-" or not photo_candidate.exists():
+                        # Tool auto may take 3-8 seconds to capture screenshot
+                        print(f"   ⏳ Đang chờ tool lưu xong ảnh chụp cho {acc}...")
+                        for _ in range(12):
+                            time.sleep(1.0)
+                            matches = list(photos_dir.glob(f"*{acc}*.png"))
+                            if matches:
+                                photo_candidate = matches[0]
+                                photo_name = photo_candidate.name
+                                break
 
-                    if photo_candidate.exists():
+                    if photo_candidate.exists() and photo_candidate.is_file():
                         try:
                             photo_b64 = base64.b64encode(photo_candidate.read_bytes()).decode("ascii")
                             print(f"   📸 Đã đính kèm ảnh: {photo_candidate.name}")
