@@ -10,8 +10,13 @@ env/
 # Local machine overrides
 config_local.json
 
-# Local accounts database (avoids multi-machine merge conflicts)
+# Local accounts database & winning results (avoids multi-machine merge conflicts)
 DAN_NICK_DA_QUAY*.json
+DAN_NICK_TRUNG_TUONG*
+DANH_SACH_NICK_D_AUTO*
+ai_state.json
+anh_nick_trung/
+*.zip
 
 # Logs & temp files
 *.log
