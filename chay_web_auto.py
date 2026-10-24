@@ -2387,7 +2387,10 @@ async def _capture_winner_screenshot_async(res):
         except Exception as e_compress:
           print(f"⚠️ [{acc_name}] Không thể nén ảnh: {e_compress}", flush=True)
 
-        await browser.close()
+        try:
+          await asyncio.wait_for(browser.close(), timeout=4.0)
+        except Exception:
+          pass
         return rel_path
     except Exception as e:
       print(f"⚠️ [Screenshot Error] Không thể chụp ảnh cho {acc_name}: {e}", flush=True)
@@ -2846,7 +2849,11 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
             if res["isJackpot2x"]:
               jackpot_cnt += 1
               # Chụp ảnh mục Thần Tướng (Dương Tiễn / Ngộ Không / Na Tra / Lý Tịnh / Đường Tam Tạng đứng đầu Hàng 1)
-              snap_rel = await _capture_winner_screenshot_async(res)
+              try:
+                snap_rel = await asyncio.wait_for(_capture_winner_screenshot_async(res), timeout=75.0)
+              except Exception as err_snap:
+                print(f"⚠️ [Screenshot Timeout] Quá thời gian chụp ảnh ({err_snap}), lưu nick và tiếp tục cày...", flush=True)
+                snap_rel = ""
               if snap_rel:
                 res["screenshot"] = snap_rel
               print(
