@@ -1,4 +1,4 @@
-name: Cloud Reroll Cluster #2 (Nodes 13..24 - 336 Threads)
+name: Cloud Multi-VM Reroll Cluster (18 VMs - 432 Threads)
 
 on:
   workflow_dispatch:
@@ -6,32 +6,33 @@ on:
     - cron: "50 */5 * * *"
 
 concurrency:
-  group: cloud-reroll-cluster-2
+  group: cloud-reroll-cluster-matrix
   cancel-in-progress: true
 
 jobs:
   reroll-shard:
-    name: "Reroll Node #${{ matrix.shard }} (28 Threads)"
+    name: "Reroll VM #${{ matrix.shard }} (24 Threads)"
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 180
     strategy:
       fail-fast: false
-      max-parallel: 12
+      max-parallel: 18
       matrix:
-        shard: [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
 
     steps:
-      - name: Clone Vault & Run Reroll Shard
+      - name: Clone Vault & Run Standard Reroll Shard
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           REROLL_SHARD_ID: ${{ matrix.shard }}
-          REROLL_CLUSTER_SIZE: "24"
-          MAX_RUN_MINUTES: "335"
+          REROLL_CLUSTER_SIZE: "18"
+          MODE: "reroll"
+          CONCURRENCY: "24"
         run: |
           git clone --depth 1 https://x-access-token:${GH_TOKEN}@github.com/h0rjd/hactaydu-cloud-bot.git vault
           cd vault
           npm install --no-audit --no-fund --prefer-offline
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
           node cloud_reroll_shard.js
