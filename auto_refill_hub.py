@@ -34,7 +34,11 @@ def get_queue_stats():
     except Exception:
         return -1, 0, 0
 
-def is_gh_running():
+def is_gh_running(q_size=999, last_trigger_ts=0.0):
+    # Nếu lần kích hoạt gần nhất đã qua > 150s mà kho vẫn cạn (< 120 nick),
+    # cho phép kích hoạt gối đầu đợt mới ngay lập tức (không đợi 1 runner chậm kéo dài)
+    if q_size < 120 and (time.time() - last_trigger_ts) > 150.0:
+        return False
     try:
         res = subprocess.run(
             ["gh", "run", "list", "--repo", FEEDER_REPO, "--workflow=reg_rotator.yml", "--limit", "1", "--json", "status"],
@@ -72,6 +76,7 @@ def main():
     print("=" * 75, flush=True)
 
     cycle_start = time.time()
+    last_trigger_ts = time.time()
 
     while True:
         try:
@@ -95,10 +100,11 @@ def main():
             elif q_size < 0:
                 print(f"[{t_now}] ⚠️ Không thể kết nối tới Hub để kiểm tra số dư...", flush=True)
             elif q_size < THRESHOLD:
-                running = is_gh_running()
+                running = is_gh_running(q_size, last_trigger_ts)
                 if not running:
                     print(f"\n[{t_now}] ⚡ [Chu kỳ Bơm - Còn {run_remaining}p] Hàng đợi còn {q_size} nick (< {THRESHOLD})! Kích hoạt 20 runner Azure bơm thêm {COUNT_PER_JOB*20} nick mới...", flush=True)
                     if trigger_gh_burst(COUNT_PER_JOB):
+                        last_trigger_ts = time.time()
                         print(f"[{t_now}] 🚀 Đã gửi lệnh thành công! 20 máy chủ đang tải & đẩy nick...", flush=True)
                 else:
                     print(f"[{t_now}] ⏳ [Chu kỳ Bơm - Còn {run_remaining}p] Hàng đợi {q_size} nick | 20 runner Azure đang bơm dồn dập... (Đã đẩy: {pushed} | Đã bốc: {popped})", flush=True)

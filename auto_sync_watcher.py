@@ -19,7 +19,7 @@ from pathlib import Path
 def main() -> None:
     try:
         if sys.stdout and hasattr(sys.stdout, "reconfigure"):
-            sys.stdout.reconfigure(encoding="utf-8")
+            sys.stdout.reconfigure(encoding="utf-8", write_through=True)
     except Exception:
         pass
 
@@ -143,7 +143,27 @@ def main() -> None:
                                 break
 
                     if not (photo_candidate.exists() and photo_candidate.is_file()):
-                        print(f"   ⏳ Chưa có ảnh chụp cho {acc}, tạm hoãn để chờ tool lưu xong ảnh rồi mới bơm sang Bot...")
+                        try:
+                            import asyncio
+                            import re as _re
+                            import chay_web_auto as _cwa
+                            m_sid = _re.search(r"(61\d{4})", server)
+                            sid_int = int(m_sid.group(1)) if m_sid else 610083
+                            print(f"   📸 Tự động chạy chụp bù ảnh đội hình cho {acc} (SID: {sid_int})...", flush=True)
+                            asyncio.run(_cwa._capture_winner_screenshot_async({
+                                "account": acc,
+                                "funtapId": funtap_id,
+                                "serverId": sid_int,
+                            }))
+                            matches = list(photos_dir.glob(f"*{acc}*.jpg")) + list(photos_dir.glob(f"*{acc}*.png"))
+                            if matches:
+                                photo_candidate = matches[0]
+                                photo_name = photo_candidate.name
+                        except Exception as e_fb:
+                            print(f"   ⚠️ Chụp bù ảnh cho {acc} lỗi: {e_fb}", flush=True)
+
+                    if not (photo_candidate.exists() and photo_candidate.is_file()):
+                        print(f"   ⏳ Chưa có ảnh chụp cho {acc}, tạm hoãn để chờ tool lưu xong ảnh rồi mới bơm sang Bot...", flush=True)
                         continue
 
                     try:
