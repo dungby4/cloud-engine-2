@@ -77,7 +77,7 @@ DEFAULT_CONFIG = {
     "parity": "auto",
     "threads": 48,
     "port": 8088,
-    "target_server": "610081",
+    "target_server": "610083",
     "min_copies": 2,
     "hub_url": "https://152-69-209-107.sslip.io/api/accounts/pop",
     "server_list_url": "http://100.68.248.22:8088/api/server_list",
@@ -202,7 +202,20 @@ COMMAND_QUEUE = []
 
 # Complete Official Live Server List across all Clusters of Hắc Tây Du Funtap (Auto-synced from Funtap API)
 ALL_SERVERS_DATA = [
+    # Cụm 9: Hỏa Diệm Sơn (S81 -> S90)
+    {"sid": "610085", "id": 85, "name": "[S85 Mới Nhất] Hỏa Diệm Sơn-S5", "server": "wss://wss-funtap-xy.xinliugame.net:9111/", "status": "1", "recommend": 1, "cluster": "Hỏa Diệm Sơn"},
+    {"sid": "610084", "id": 84, "name": "[S84] Hỏa Diệm Sơn-S4", "server": "wss://wss-funtap-xy.xinliugame.net:9110/", "status": "1", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
+    {"sid": "610083", "id": 83, "name": "[S83] Hỏa Diệm Sơn-S3", "server": "wss://wss-funtap-xy.xinliugame.net:9109/", "status": "1", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
+    {"sid": "610082", "id": 82, "name": "[S82] Hỏa Diệm Sơn-S2", "server": "wss://wss-funtap-xy.xinliugame.net:9108/", "status": "2", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
+    {"sid": "610081", "id": 81, "name": "[S81] Hỏa Diệm Sơn-S1", "server": "wss://wss-funtap-xy.xinliugame.net:9107/", "status": "2", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
     # Cụm 8: Nữ Nhi Quốc (S71 -> S80)
+    {"sid": "610080", "id": 80, "name": "[S80] Nữ Nhi Quốc-S10", "server": "wss://wss-funtap-xy.xinliugame.net:9106/", "status": "2", "recommend": 0, "cluster": "Nữ Nhi Quốc"},
+    {"sid": "610079", "id": 79, "name": "[S79] Nữ Nhi Quốc-S9", "server": "wss://wss-funtap-xy.xinliugame.net:9105/", "status": "2", "recommend": 0, "cluster": "Nữ Nhi Quốc"},
+    {"sid": "610078", "id": 78, "name": "[S78] Nữ Nhi Quốc-S8", "server": "wss://wss-funtap-xy.xinliugame.net:9104/", "status": "2", "recommend": 0, "cluster": "Nữ Nhi Quốc"},
+    {"sid": "610077", "id": 77, "name": "[S77] Nữ Nhi Quốc-S7", "server": "wss://wss-funtap-xy.xinliugame.net:9103/", "status": "2", "recommend": 0, "cluster": "Nữ Nhi Quốc"},
+    {"sid": "610076", "id": 76, "name": "[S76] Nữ Nhi Quốc-S6", "server": "wss://wss-funtap-xy.xinliugame.net:9102/", "status": "2", "recommend": 0, "cluster": "Nữ Nhi Quốc"},
+    {"sid": "610075", "id": 75, "name": "[S75] Nữ Nhi Quốc-S5", "server": "wss://wss-funtap-xy.xinliugame.net:9101/", "status": "2", "recommend": 0, "cluster": "Nữ Nhi Quốc"},
+    {"sid": "610074", "id": 74, "name": "[S74] Nữ Nhi Quốc-S4", "server": "wss://wss-funtap-xy.xinliugame.net:9100/", "status": "2", "recommend": 0, "cluster": "Nữ Nhi Quốc"},
     {"sid": "610073", "id": 73, "name": "[S73 Mới Nhất] Nữ Nhi Quốc-S3", "server": "wss://wss-funtap-xy.xinliugame.net:9099/", "status": "1", "recommend": 1, "cluster": "Nữ Nhi Quốc"},
     {"sid": "610072", "id": 72, "name": "[S72] Nữ Nhi Quốc-S2", "server": "wss://wss-funtap-xy.xinliugame.net:9098/", "status": "2", "recommend": 0, "cluster": "Nữ Nhi Quốc"},
     {"sid": "610071", "id": 71, "name": "[S71] Nữ Nhi Quốc-S1", "server": "wss://wss-funtap-xy.xinliugame.net:9097/", "status": "2", "recommend": 0, "cluster": "Nữ Nhi Quốc"},
@@ -2681,10 +2694,24 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
   newest_srv = fetch_latest_server_live()
   srv_info = newest_srv
   if sid_str and str(sid_str) not in ("latest", "auto", "0"):
+    found = False
     for s in ALL_SERVERS_DATA:
-      if str(s["sid"]) == str(sid_str):
+      if str(s["sid"]) == str(sid_str) or str(s.get("id")) == str(sid_str):
         srv_info = s
+        found = True
         break
+    if not found and str(sid_str).isdigit():
+      srv_id = int(sid_str) - 610000 if int(sid_str) > 600000 else int(sid_str)
+      cluster_idx = (srv_id - 1) % 10 + 1
+      srv_info = {
+          "sid": str(610000 + srv_id),
+          "id": srv_id,
+          "name": f"[S{srv_id}] Hỏa Diệm Sơn-S{cluster_idx}",
+          "server": f"wss://wss-funtap-xy.xinliugame.net:{srv_id + 9026}/",
+          "status": "1",
+          "recommend": 1,
+          "cluster": "Hỏa Diệm Sơn",
+      }
 
   _save_reroll_files()
   m_id = str(MACHINE_ID or "m1").lower()
