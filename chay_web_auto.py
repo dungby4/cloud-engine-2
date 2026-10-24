@@ -2972,13 +2972,14 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
               finally:
                 with REROLL_LOCK:
                   IN_FLIGHT_USERS.discard(reg_info["username"])
-              if res and len(res.get("heroes5Star") or []) >= 4:
-                break
-              # Nếu phôi cũ đã từng quay ở server này rồi (không nhận lại được mảnh), đánh dấu sid=cur_sid_int để không bốc lại ở server này nữa
-              if reg_info.get("reused") and (not res or len(res.get("heroes5Star") or []) == 0):
+              if reg_info.get("reused"):
                 with REROLL_LOCK:
                   if reg_info["username"] in REUSABLE_POOL:
                     REUSABLE_POOL[reg_info["username"]]["sid"] = cur_sid_int
+                if res:
+                  break
+              if res and len(res.get("heroes5Star") or []) >= 4:
+                break
 
             if not res or len(res.get("heroes5Star") or []) == 0:
               continue
