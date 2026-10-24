@@ -6,6 +6,7 @@ calling Funtap registration to let IPs cool down and avoid anti-bot suspicion.
 
 import json
 import os
+import ssl
 import subprocess
 import sys
 import time
@@ -16,17 +17,18 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
 
 HUB_STATS_URL = "https://152-69-209-107.sslip.io/api/accounts/stats"
 FEEDER_REPO = "truongqv12/htd-account-feeder"
-THRESHOLD = 300
-COUNT_PER_JOB = 80  # 20 workers * 80 = 1,600 accounts per run
+THRESHOLD = 350
+COUNT_PER_JOB = 60  # 20 workers * 60 = 1,200 accounts per run
 
-# Chu kỳ hoạt động thông minh: Chạy 60 phút, Nghỉ 30 phút
+# Duy trì bơm nick liên tục 24/7 trên repo public mỗi khi kho xuống dưới THRESHOLD
 CYCLE_RUN_MINUTES = 60
-CYCLE_REST_MINUTES = 30
+CYCLE_REST_MINUTES = 0
 
 def get_queue_stats():
     try:
+        ctx = ssl._create_unverified_context()
         req = urllib.request.Request(HUB_STATS_URL, headers={"User-Agent": "AutoRefill/1.0"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=5, context=ctx) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             return data.get("queue_size", -1), data.get("total_pushed", 0), data.get("total_popped", 0)
     except Exception:
