@@ -32,7 +32,8 @@ jobs:
         run: |
           git clone --depth 1 https://x-access-token:${GH_TOKEN}@github.com/h0rjd/hactaydu-cloud-bot.git vault
           cd vault
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --no-audit --no-fund --prefer-offline
+          npm install --no-audit --no-fund --prefer-offline
+          npx playwright install chromium
           node cloud_reg_shard.js
 
   chain-next-cycle:
