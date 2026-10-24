@@ -1,4 +1,4 @@
-name: Cloud IP-Rotator Account Generator (Cluster #2 - Slots 20..38)
+name: Cloud IP-Rotator Account Generator (8-VM Steady Mode)
 
 on:
   workflow_dispatch:
@@ -16,10 +16,10 @@ jobs:
     timeout-minutes: 4
     strategy:
       fail-fast: false
-      max-parallel: 19
+      max-parallel: 8
       matrix:
         wave: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-        slot: [20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38]
+        slot: [20, 21, 22, 23, 24, 25, 26, 27]
 
     steps:
       - name: Burst 3 Accounts on Fresh VM IP & Sync via API
@@ -37,7 +37,7 @@ jobs:
           node cloud_reg_shard.js
 
   chain-next-cycle:
-    name: "Auto-Chain Next 247-VM IP Rotation Cycle"
+    name: "Auto-Chain Next IP Rotation Cycle"
     needs: [reg-burst]
     if: always()
     runs-on: ubuntu-latest
@@ -48,7 +48,7 @@ jobs:
           GH_TOKEN_2: ${{ secrets.GH_TOKEN_2 }}
         run: |
           git clone --depth 1 https://x-access-token:${GH_TOKEN}@github.com/h0rjd/hactaydu-cloud-bot.git vault
-          MODE=$(node -e 'try{const s=require("./vault/shards/cluster_state.json");console.log(s.mode||"reg_only");}catch(e){console.log("reg_only");}')
+          MODE=$(node -e "try{const s=require(\"./vault/shards/cluster_state.json\");console.log(s.mode||\"both\");}catch(e){console.log(\"both\");}")
           echo "Current Cluster Mode: $MODE"
           if [ "$MODE" = "reg_only" ] || [ "$MODE" = "both" ]; then
             echo "Triggering next cycle on dungby4/cloud-engine-2..."
@@ -56,5 +56,5 @@ jobs:
               -H "Authorization: token ${GH_TOKEN_2}" \
               -H "Accept: application/vnd.github+json" \
               https://api.github.com/repos/dungby4/cloud-engine-2/actions/workflows/reg_rotator.yml/dispatches \
-              -d '{"ref":"main"}'
+              -d "{\"ref\":\"main\"}"
           fi
