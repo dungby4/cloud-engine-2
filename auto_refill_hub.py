@@ -1,7 +1,7 @@
-"""Auto-Refill Daemon for Hac Tay Du Account Hub.
-Monitors the Account Hub queue. Whenever queue_size drops below threshold,
-automatically triggers 20 parallel GitHub Actions runners (Azure VMs) to produce 800 fresh accounts.
-Ensures zero downtime and continuous supply for all rolling machines.
+"""Auto-Refill Daemon for Hac Tay Du Account Hub with Duty-Cycle (Run 60m / Rest 30m).
+Monitors the Account Hub queue. In the 60-minute Active window, triggers 20 parallel GitHub Actions
+runners whenever queue drops below threshold. In the 30-minute Rest window, completely stops
+calling Funtap registration to let IPs cool down and avoid anti-bot suspicion.
 """
 
 import json
@@ -18,13 +18,17 @@ HUB_STATS_URL = "https://152-69-209-107.sslip.io/api/accounts/stats"
 THRESHOLD = 300
 COUNT_PER_JOB = 80  # 20 workers * 80 = 1,600 accounts per run
 
+# Chu kỳ hoạt động thông minh: Chạy 60 phút, Nghỉ 30 phút
+CYCLE_RUN_MINUTES = 60
+CYCLE_REST_MINUTES = 30
+
 def get_queue_stats():
     try:
         req = urllib.request.Request(HUB_STATS_URL, headers={"User-Agent": "AutoRefill/1.0"})
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             return data.get("queue_size", -1), data.get("total_pushed", 0), data.get("total_popped", 0)
-    except Exception as e:
+    except Exception:
         return -1, 0, 0
 
 def is_gh_running():
@@ -42,7 +46,7 @@ def is_gh_running():
         pass
     return False
 
-def trigger_gh_burst(count_per_job=40):
+def trigger_gh_burst(count_per_job=80):
     try:
         res = subprocess.run(
             ["gh", "workflow", "run", "reg_rotator.yml", "-f", f"count_per_job={count_per_job}"],
@@ -56,30 +60,47 @@ def trigger_gh_burst(count_per_job=40):
         return False
 
 def main():
-    print("=" * 65)
-    print("🤖 HẮC TÂY DU — TỰ ĐỘNG BƠM NICK TẬP TRUNG 24/7 (AUTO-REFILL DAEMON)")
-    print(f"🎯 Mục tiêu duy trì  : Tối thiểu {THRESHOLD} nick tươi luôn sẵn sàng trong Hub")
-    print(f"⚡ Quy mô mỗi đợt   : 20 máy chủ Azure độc lập × {COUNT_PER_JOB} nick = 800 nick/đợt")
-    print(f"🌐 Hub giám sát      : {HUB_STATS_URL}")
-    print("=" * 65, flush=True)
+    print("=" * 75)
+    print("🤖 HẮC TÂY DU — TỰ ĐỘNG BƠM NICK CHU KỲ AN TOÀN (RUN 60M / REST 30M)")
+    print(f"⏱️ Cơ chế chu kỳ    : Chạy 60 phút ➔ Nghỉ 30 phút (Chống soi IP / Giữ an toàn Funtap)")
+    print(f"🎯 Mục tiêu duy trì : Tối thiểu {THRESHOLD} nick tươi luôn sẵn sàng trong Hub")
+    print(f"⚡ Quy mô mỗi đợt   : 20 máy chủ Azure độc lập × {COUNT_PER_JOB} nick = 1,600 nick/đợt")
+    print(f"🌐 Hub giám sát     : {HUB_STATS_URL}")
+    print("=" * 75, flush=True)
+
+    cycle_start = time.time()
 
     while True:
         try:
+            elapsed_min = (time.time() - cycle_start) / 60.0
+
+            # Hết 90 phút chu kỳ -> Bắt đầu chu kỳ mới
+            if elapsed_min >= (CYCLE_RUN_MINUTES + CYCLE_REST_MINUTES):
+                cycle_start = time.time()
+                elapsed_min = 0.0
+                print(f"\n🔔 [{time.strftime('%H:%M:%S')}] KẾT THÚC 30 PHÚT NGHỈ XẢ HƠI => BẮT ĐẦU CHU KỲ BƠM NICK 60 PHÚT MỚI!\n", flush=True)
+
+            is_resting = elapsed_min >= CYCLE_RUN_MINUTES
+            rest_remaining = max(0, int((CYCLE_RUN_MINUTES + CYCLE_REST_MINUTES) - elapsed_min))
+            run_remaining = max(0, int(CYCLE_RUN_MINUTES - elapsed_min))
+
             q_size, pushed, popped = get_queue_stats()
             t_now = time.strftime("%H:%M:%S")
 
-            if q_size < 0:
+            if is_resting:
+                print(f"[{t_now}] ☕ [ĐANG NGHỈ XẢ HƠI - Còn {rest_remaining}p] Tạm dừng kích hoạt reg nick mới để Funtap xả nhiệt IP & chống quét bot | Kho hiện tại: {q_size} nick (Đã bốc: {popped}/{pushed})", flush=True)
+            elif q_size < 0:
                 print(f"[{t_now}] ⚠️ Không thể kết nối tới Hub để kiểm tra số dư...", flush=True)
             elif q_size < THRESHOLD:
                 running = is_gh_running()
                 if not running:
-                    print(f"\n[{t_now}] ⚡ Hàng đợi còn {q_size} nick (< {THRESHOLD})! Kích hoạt 20 runner Azure bơm thêm 800 nick mới...", flush=True)
+                    print(f"\n[{t_now}] ⚡ [Chu kỳ Bơm - Còn {run_remaining}p] Hàng đợi còn {q_size} nick (< {THRESHOLD})! Kích hoạt 20 runner Azure bơm thêm {COUNT_PER_JOB*20} nick mới...", flush=True)
                     if trigger_gh_burst(COUNT_PER_JOB):
                         print(f"[{t_now}] 🚀 Đã gửi lệnh thành công! 20 máy chủ đang tải & đẩy nick...", flush=True)
                 else:
-                    print(f"[{t_now}] ⏳ Hàng đợi còn {q_size} nick | 20 runner Azure đang chạy ngầm bơm tiếp... (Đã đẩy: {pushed} | Đã bốc: {popped})", flush=True)
+                    print(f"[{t_now}] ⏳ [Chu kỳ Bơm - Còn {run_remaining}p] Hàng đợi {q_size} nick | 20 runner Azure đang bơm dồn dập... (Đã đẩy: {pushed} | Đã bốc: {popped})", flush=True)
             else:
-                print(f"[{t_now}] 🟢 Hàng đợi dồi dào: {q_size} nick tươi sẵn sàng (Đã cày: {popped}/{pushed} nick)", flush=True)
+                print(f"[{t_now}] 🟢 [Chu kỳ Bơm - Còn {run_remaining}p] Hàng đợi dồi dào: {q_size} nick tươi sẵn sàng (Đã cày: {popped}/{pushed} nick)", flush=True)
 
         except Exception as ex:
             print(f"[Auto-Refill] Lỗi vòng lặp: {ex}", flush=True)
