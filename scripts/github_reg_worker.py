@@ -101,13 +101,16 @@ def register_one_account(page, worker_id, seq):
     if not res.get("ok"):
         print(f"[{worker_id}#{seq}] Submit error: {res.get('error')}")
 
-    try:
-        page.wait_for_load_state("load", timeout=8000)
-    except Exception:
-        pass
-
-    time.sleep(0.6)
-    content = page.content()
+    content = ""
+    for _ in range(8):
+        try:
+            page.wait_for_load_state("domcontentloaded", timeout=4000)
+            time.sleep(0.5)
+            content = page.content()
+            if "loginSuccess" in content or "form" in content:
+                break
+        except Exception:
+            time.sleep(0.4)
 
     registered_info = None
     if "loginSuccess" in content:
@@ -182,9 +185,12 @@ def main():
         page = context.new_page()
 
         for seq in range(1, args.count + 1):
-            acc = register_one_account(page, args.worker_id, seq)
-            if acc:
-                created_accounts.append(acc)
+            try:
+                acc = register_one_account(page, args.worker_id, seq)
+                if acc:
+                    created_accounts.append(acc)
+            except Exception as e:
+                print(f"[{args.worker_id}#{seq}] Loop exception: {e}")
             if seq < args.count:
                 time.sleep(args.pace)
 
