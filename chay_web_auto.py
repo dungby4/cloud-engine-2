@@ -2897,7 +2897,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
           # Chờ ngắn 2.0s để đón mẻ nick tươi mới nhất từ GitHub Actions rót vào Hub
           time.sleep(2.0)
 
-      globals()["ACTIVE_CDK_SEMAPHORE"] = asyncio.Semaphore(3)
+      globals()["ACTIVE_CDK_SEMAPHORE"] = asyncio.Semaphore(2 if FRESH_ONLY else 1)
       auto_latest_mode = str(sid_str or "latest").lower() in ("latest", "auto", "0", "")
       wedged_sids = {}
       consec_cdk_starved = [0]
@@ -3002,9 +3002,9 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
 
             confirmed_cnt = len(res.get("confirmedCodes") or [])
             if int(srv_info["sid"]) == cur_sid_int:
-              if confirmed_cnt < 8:
+              if confirmed_cnt < 24:
                 consec_cdk_starved[0] += 1
-                if auto_latest_mode and consec_cdk_starved[0] >= 2:
+                if auto_latest_mode and consec_cdk_starved[0] >= 3:
                   wedged_sids[cur_sid_int] = time.time() + 900.0
                   consec_cdk_starved[0] = 0
                   for cand_s in ALL_SERVERS_DATA:
@@ -3012,7 +3012,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                     if c_sid < cur_sid_int and wedged_sids.get(c_sid, 0) <= time.time():
                       srv_info = cand_s
                       print(
-                          f"\n⚠️ [AUTO-FALLBACK CDK] Server {cur_srv['name']} ({cur_sid_int}) đang nghẽn cổng Giftcode ({confirmed_cnt}/28 mã) "
+                          f"\n⚠️ [AUTO-FALLBACK CDK] Server {cur_srv['name']} ({cur_sid_int}) đang hụt Giftcode ({confirmed_cnt}/28 mã) "
                           f"=> Tự động chuyển sang {srv_info['name']} ({srv_info['sid']}) ăn 28/28 code (sẽ tự kiểm tra lại {cur_srv['name']} sau 15 phút)!\n",
                           flush=True,
                       )
@@ -3023,7 +3023,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
             completed_cnt += 1
             last_print_ts[0] = time.time()
             acc_u = res["account"]
-            if confirmed_cnt < 8:
+            if confirmed_cnt < 10:
               saved_sid = int(reg_info.get("prevSid") or (cur_sid_int - 2)) if (reg_info and reg_info.get("reused")) else (cur_sid_int - 2)
             else:
               saved_sid = cur_sid_int
