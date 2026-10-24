@@ -1,4 +1,4 @@
-name: Cloud Multi-VM Reroll Cluster (18 VMs - 432 Threads)
+name: Cloud Multi-VM Reroll Cluster (10-VM Steady Mode)
 
 on:
   workflow_dispatch:
@@ -11,14 +11,14 @@ concurrency:
 
 jobs:
   reroll-shard:
-    name: "Reroll VM #${{ matrix.shard }} (24 Threads)"
+    name: "Reroll VM #${{ matrix.shard }} (16 Threads Steady)"
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
       fail-fast: false
-      max-parallel: 18
+      max-parallel: 10
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     steps:
       - name: Clone Vault & Run Standard Reroll Shard
@@ -27,9 +27,10 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           REROLL_SHARD_ID: ${{ matrix.shard }}
-          REROLL_CLUSTER_SIZE: "18"
+          REROLL_CLUSTER_SIZE: "10"
           MODE: "reroll"
-          CONCURRENCY: "24"
+          CONCURRENCY: "16"
+          ACCOUNTS_PATH: "new_created_accounts.json"
         run: |
           git clone --depth 1 https://x-access-token:${GH_TOKEN}@github.com/h0rjd/hactaydu-cloud-bot.git vault
           cd vault
