@@ -297,7 +297,11 @@ class RerollIntegrationTests(unittest.IsolatedAsyncioTestCase):
     source = Path(__file__).resolve().parents[1] / "chay_web_auto.py"
     tree = ast.parse(source.read_text(encoding="utf-8"))
     names = {"_reroll_single_account", "_pkt_msg", "_pkt_str", "_parse_hero_gt", "_parse_hero_packet"}
-    selected = [node for node in tree.body if getattr(node, "name", None) in names]
+    selected = [
+        node for node in tree.body
+        if getattr(node, "name", None) in names
+        or (isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id in ("ALL_RED_HEROES", "HERO_CAMP_MAP") for t in node.targets))
+    ]
     code_node = next(node for node in tree.body if isinstance(node, ast.Assign)
                      and any(isinstance(t, ast.Name) and t.id == "REROLL_GIFTCODES" for t in node.targets))
     codes = ast.literal_eval(code_node.value)
@@ -317,7 +321,7 @@ class RerollIntegrationTests(unittest.IsolatedAsyncioTestCase):
               REROLL_STATE={"stopRequested": False}, VN_LANG_MAP={}, PORT=8088,
               REROLL_GIFTCODES=codes, fetch_fresh_authkey=auth,
               websockets=SimpleNamespace(connect=connect),
-              GiftcodeClaims=lambda: GiftcodeClaims(min_interval=0.005, timeout=0.2))
+              GiftcodeClaims=lambda: GiftcodeClaims(min_interval=0.005, timeout=0.2, max_attempts=3, reconnect_on_timeout=True))
     exec(compile(ast.Module(body=selected, type_ignores=[]), str(source), "exec"), ns)
     pkt_str = ns["_pkt_str"]
     pkt_msg = ns["_pkt_msg"]

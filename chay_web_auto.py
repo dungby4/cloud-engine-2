@@ -1998,6 +1998,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
     with REROLL_LOCK:
       REROLL_STATE["stepMsg"] = f"[{idx_label}] {acc_id} (ID:{real_acc_id} | {srv_name}): {msg}"
 
+  fake_client_ip = f"14.{random.randint(160, 247)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+
   async def build_login_packet():
     ak_info = await asyncio.to_thread(fetch_fresh_authkey, real_acc_id, access_tok)
     json_datas = json.dumps({"gamePlatform": "funtap", "appid": "ios", "pf": "ios_funtap", "phoneSystem": 2})
@@ -2006,8 +2008,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
     login_payload.extend(struct.pack(">i", int(ak_info["timestamp"])))
     login_payload.extend(_pkt_str(ak_info["authKey"]))
     login_payload.extend(_pkt_str("vn"))
-    login_payload.extend(_pkt_str(""))
-    login_payload.extend(_pkt_str("127.0.0.1"))
+    login_payload.extend(_pkt_str("VN"))
+    login_payload.extend(_pkt_str(fake_client_ip))
     login_payload.extend(_pkt_str(json_datas))
     login_payload.extend(_pkt_str(""))
     return _pkt_msg(56, login_payload)
@@ -2116,7 +2118,9 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         else:
           await ws.send(_pkt_msg(91, struct.pack(">i", 1)))
           await ws.send(_pkt_msg(598, struct.pack(">i", 1)))
-        await asyncio.sleep(0.40)
+        # Khởi tạo MailManager trên server mới (như S83) trước khi bắn Giftcode để tránh hụt mã đầu tiên
+        await ws.send(_pkt_msg(64, b"\x01"))
+        await asyncio.sleep(0.45)
 
         total_codes = len(REROLL_GIFTCODES)
         await claims.claim_all(
@@ -2159,25 +2163,52 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         await ws.send(_pkt_msg(61))
         await asyncio.sleep(0.35)
 
-        # CHẾ ĐỘ QUAY FULL 10 LƯỢT X10 (8 LẦN THIÊN MỆNH + 2 LẦN TAM GIỚI):
+        # CHẾ ĐỘ XẢ SẠCH 100% VÉ (68 VÉ THIÊN MỆNH + 14 VÉ TAM GIỚI) & GIỮ NGUYÊN 3820 TIÊN NGỌC:
         # 1. Đã mở 250 mảnh 5★ (5 tướng).
-        # 2. Xả đủ 8 lần x10 Thiên Mệnh (80 vé/KNB)
+        # 2. Xả đủ 68 vé Thiên Mệnh: 1 đơn tân thủ + 6 lần x10 (60 vé) + 7 lần đơn (7 vé) => chạm mốc bảo hiểm 5★ thứ 68!
         await ws.send(_pkt_msg(1320, b"\x01"))
         await asyncio.sleep(0.10)
 
-        for p_idx in range(1, 9):
+        await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 1, 1)))
+        await asyncio.sleep(0.40)
+
+        for p_idx in range(1, 7):
           if REROLL_STATE["stopRequested"]:
             break
-          set_step(f"Đang quay Thiên Mệnh x10 lần {p_idx}/8 (DT:{dt_count} | TNK:{tnk_count} | NT:{nt_count} | LT:{lt_count} | DTT:{dtt_count})...")
+          set_step(f"Đang quay Thiên Mệnh x10 lần {p_idx}/6 (DT:{dt_count} | TNK:{tnk_count} | NT:{nt_count} | LT:{lt_count} | DTT:{dtt_count})...")
           await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 2, 1)))
-          await asyncio.sleep(0.35)
+          await asyncio.sleep(0.45)
 
-        # 3. KIỂM TRA PHÔI ĐỎ SAU KHI QUAY THIÊN MỆNH:
+        for s_idx in range(1, 8):
+          if REROLL_STATE["stopRequested"]:
+            break
+          set_step(f"Đang xả nốt 7 vé Thiên Mệnh lẻ ({s_idx}/7) chạm mốc 68 vé...")
+          await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 1, 1)))
+          await asyncio.sleep(0.44)
+
+        # LƯỚI BẢO HIỂM AN TOÀN: Nếu tổng tướng 5★ < 9 (chứng tỏ server trễ thư vé khiến đợt quay đầu hụt vé)
+        # Nhận lại thư và quay bù vé ngay lập tức
+        if len(heroes_5star) < 9 and not REROLL_STATE["stopRequested"]:
+          set_step("Bảo hiểm vé trễ: Đang nhận lại thư & quay bù 68 vé Thiên Mệnh...")
+          await ws.send(_pkt_msg(61))
+          await asyncio.sleep(0.45)
+          for _ in range(6):
+            if REROLL_STATE["stopRequested"]:
+              break
+            await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 2, 1)))
+            await asyncio.sleep(0.44)
+          for _ in range(7):
+            if REROLL_STATE["stopRequested"]:
+              break
+            await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 1, 1)))
+            await asyncio.sleep(0.42)
+
+        # 3. KIỂM TRA PHÔI ĐỎ SAU KHI QUAY 68 VÉ THIÊN MỆNH:
         red_counts = {h: heroes_5star.count(h) for h in ALL_RED_HEROES}
         phoi_heroes = [h for h in ALL_RED_HEROES if red_counts[h] >= 1]
         has_target_phoi = len(phoi_heroes) > 0
 
-        # 4. XẢ ĐỦ 2 LẦN X10 VÉ TAM GIỚI (20 LƯỢT):
+        # 4. XẢ SẠCH 14 VÉ TAM GIỚI (1 LẦN X10 + 4 LẦN ĐƠN):
         # Nếu đã có phôi: dồn theo hệ của phôi để chốt 2x/3x!
         # Nếu chưa có phôi: dồn vào Hệ Tiên (camp 4) để săn Dương Tiễn / Na Tra / Lý Tịnh!
         if not REROLL_STATE["stopRequested"]:
@@ -2186,13 +2217,17 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
             camp_id = HERO_CAMP_MAP.get(best_hero, 4)
             camp_names = {2: "Nhân", 3: "Phật/Minh", 4: "Tiên", 5: "Yêu"}
             camp_label = f"Hệ {camp_names.get(camp_id, 'Tiên')} (Săn 2x {best_hero})"
-            set_step(f"🔥 ĐÃ CÓ PHÔI! Đang xả 2 lần x10 Tam Giới vào {camp_label} ({best_hero}:{red_counts[best_hero]})...")
+            set_step(f"🔥 ĐÃ CÓ PHÔI! Đang xả 14 vé Tam Giới vào {camp_label} ({best_hero}:{red_counts[best_hero]})...")
           else:
             camp_id = 4
-            set_step("Đang xả 2 lần x10 Tam Giới vào Hệ Tiên (Săn Dương Tiễn / Na Tra)...")
-          for _ in range(2):
-            await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 2, 1)))
-            await asyncio.sleep(0.35)
+            set_step("Đang xả 14 vé Tam Giới vào Hệ Tiên (Săn Dương Tiễn / Na Tra)...")
+          await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 2, 1)))
+          await asyncio.sleep(0.45)
+          for _ in range(4):
+            if REROLL_STATE["stopRequested"]:
+              break
+            await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 1, 1)))
+            await asyncio.sleep(0.44)
 
         await asyncio.sleep(0.24)
 

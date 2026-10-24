@@ -9,14 +9,17 @@ from websockets.exceptions import ConnectionClosed
 
 
 class GiftcodeClaims:
-  def __init__(self, min_interval=0.38, timeout=1.20, max_attempts=2):
+  def __init__(self, min_interval=0.45, timeout=1.80, max_attempts=7, reconnect_on_timeout=False):
     self.min_interval = min_interval
     self.timeout = timeout
     self.max_attempts = max_attempts
+    self.reconnect_on_timeout = reconnect_on_timeout
     self.confirmed = set()
     self.errors = {}
     self.needs_reconnect = False
     self._pending = None
+    self._attempt = 0
+    self._had_retry = False
     self._event = asyncio.Event()
     self._next_send = 0.0
     self._retry_after = 0.0
@@ -27,6 +30,7 @@ class GiftcodeClaims:
   def new_connection(self):
     self._pending = None
     self.needs_reconnect = False
+    self._had_retry = False
     self._event.clear()
 
   def record_packet(self, packet):
@@ -40,6 +44,7 @@ class GiftcodeClaims:
     if msg_id == 144:
       self.confirmed.add(self._pending)
       self.errors.pop(self._pending, None)
+      self._had_retry = self._attempt >= 1
       self._event.set()
     elif msg_id == 10 and size >= 10:
       # GC_BROADCAST(int, int, string), as decoded by the game client.
@@ -48,14 +53,19 @@ class GiftcodeClaims:
         return
       message = packet[14:].decode("utf-8", errors="replace")
       self._last_notice = message
-      if message.startswith("已达到领取上限") or "急急如律令" in message:
+      if message.startswith("已达到领取上限"):
+        # If the previous code required retries and we are on attempt 0 of a new code,
+        # this notice is a trailing duplicate reply from the previous code's retry.
+        if self._attempt == 0 and self._had_retry:
+          return
         self.confirmed.add(self._pending)
         self.errors.pop(self._pending, None)
+        self._had_retry = self._attempt >= 1
         self._event.set()
       elif message.startswith("操作过于频繁"):
         # The client's string formatter substitutes || arguments into {1}.
         seconds = re.search(r"\|\|(\d+(?:\.\d+)?)", message)
-        self._retry_after = float(seconds[1]) if seconds else 1.0
+        self._retry_after = float(seconds[1]) if seconds else 1.5
         self.errors[self._pending] = message
         if not math.isfinite(self._retry_after) or self._retry_after > 60:
           # Do not retry sooner than requested or leave a worker waiting forever.
@@ -98,18 +108,20 @@ class GiftcodeClaims:
             await reconnect()
             self.new_connection()
           self._pending = code
+          self._attempt = attempt
           self._event.clear()
           progress(index, len(codes), code, attempt + 1)
           await send(code)
           self._next_send = loop.time() + self.min_interval
           await asyncio.wait_for(self._event.wait(), self.timeout)
+          self._next_send = max(self._next_send, loop.time() + self.min_interval)
         except asyncio.TimeoutError:
           self.errors[code] = ("Hết thời gian chờ kết nối lại" if reconnecting and not self._pending
                                else "Hết thời gian chờ xác nhận") + (
               f"; thông báo gần nhất: {self._last_notice}" if self._last_notice else ""
           )
-          # KHÔNG tự ngắt kết nối WebSocket khi timeout mã lẻ!
-          # Giữ nguyên kết nối để nhập mượt mà các mã tiếp theo.
+          if self.reconnect_on_timeout or (reconnecting and not self._pending):
+            self.needs_reconnect = True
         except (OSError, ConnectionClosed) as error:
           self.errors[code] = f"Lỗi kết nối giftcode: {type(error).__name__}"
           self.needs_reconnect = True
@@ -119,6 +131,10 @@ class GiftcodeClaims:
           return
         if code in self.confirmed or self._terminal:
           break
-        # Giãn cách ngắn khi thử lại cùng 1 mã
-        backoff = max(self._retry_after, self.min_interval * 1.5)
+        if self._retry_after > 0:
+          backoff = self._retry_after + random.uniform(0.05, 0.20)
+        elif self.reconnect_on_timeout:
+          backoff = self.min_interval * 2 ** (attempt + 1) + random.uniform(0.05, 0.20)
+        else:
+          backoff = 0.15
         self._next_send = max(self._next_send, loop.time() + backoff)
