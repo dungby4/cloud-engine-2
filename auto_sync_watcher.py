@@ -204,7 +204,7 @@ def main() -> None:
                         "codes_claimed": codes_stat,
                         "unconfirmed_codes": unconf_list,
                         "unconfirmed_codes_str": ", ".join(unconf_list),
-                        "notes": f"Code chưa ăn: {', '.join(unconf_list)}" if unconf_list else "Đã ăn đủ 28/28 code",
+                        "notes": f"{server} -> {tuong} | Code: {codes_stat} | Ngọc=3820 | Tổng 5★={so_sao} 🔥🔥🔥🔥🔥🔥",
                         "time": time_col or time.strftime("%Y-%m-%d %H:%M:%S"),
                     }
 

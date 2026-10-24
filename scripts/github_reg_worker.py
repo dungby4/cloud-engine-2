@@ -31,9 +31,9 @@ DEVICES = [
 ]
 
 def register_one_account(page, worker_id, seq):
-    ts = int(time.time() * 1000)
-    rnd = random.randint(10, 99)
-    username = f"gh_w{worker_id}_{ts % 1000000}_{rnd}"
+    prefix = "tdha" if worker_id <= 10 else "htdvipz"
+    rnd_num = random.randint(10000, 99999)
+    username = f"{prefix}{rnd_num}"
     password = f"Pw@{random.randint(100000, 999999)}"
     device = random.choice(DEVICES)
     fullname = random.choice(VIETNAMESE_NAMES)

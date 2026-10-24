@@ -1286,11 +1286,10 @@ def _normalize_base_prefix(prefix=None):
 
 
 def _format_vip_username(base_prefix, seq_num):
-  """Định dạng chuẩn 4 chữ số: <prefix>_0001 -> <prefix>_9999 (hoàn toàn không có chữ cái như _a_).
-  Ví dụ: htdvipa_0001, htdvipa_0002, htdvipa_0003..."""
+  """Định dạng chuẩn dễ nhớ: tdha0001, tdha0002, htdvipzz0001..."""
   base = _normalize_base_prefix(base_prefix)
   seq = max(1, int(seq_num))
-  return f"{base}_{seq:04d}"
+  return f"{base}{seq:04d}"
 
 
 def _parse_vip_seq(username, base_prefix=None):
@@ -2162,38 +2161,26 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         await ws.send(_pkt_msg(61))
         await asyncio.sleep(0.35)
 
-        # CHẾ ĐỘ QUAY X10 SIÊU TỐC (CHỈ QUAY X10, KHÔNG QUAY LẺ, SKIP SỚM KHI TRẮNG PHÔI):
+        # CHẾ ĐỘ QUAY FULL 10 LƯỢT X10 (8 LẦN THIÊN MỆNH + 2 LẦN TAM GIỚI):
         # 1. Đã mở 250 mảnh 5★ (5 tướng).
-        # 2. Xả 6 lần x10 Thiên Mệnh (60 vé). Bỏ toàn bộ các lượt quay đơn lẻ để tối đa tốc độ.
+        # 2. Xả đủ 8 lần x10 Thiên Mệnh (80 vé/KNB)
         await ws.send(_pkt_msg(1320, b"\x01"))
         await asyncio.sleep(0.10)
 
-        for p_idx in range(1, 7):
+        for p_idx in range(1, 9):
           if REROLL_STATE["stopRequested"]:
             break
-          set_step(f"Đang quay Thiên Mệnh x10 lần {p_idx}/6 (DT:{dt_count} | TNK:{tnk_count} | NT:{nt_count} | LT:{lt_count} | DTT:{dtt_count})...")
+          set_step(f"Đang quay Thiên Mệnh x10 lần {p_idx}/8 (DT:{dt_count} | TNK:{tnk_count} | NT:{nt_count} | LT:{lt_count} | DTT:{dtt_count})...")
           await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 2, 1)))
-          await asyncio.sleep(0.44)
-
-        # LƯỚI BẢO HIỂM AN TOÀN: Nếu tổng tướng 5★ < 8 (chứng tỏ server trễ thư vé khiến đợt quay đầu hụt vé)
-        # Nhận lại thư và quay bù vé ngay lập tức
-        if len(heroes_5star) < 8 and not REROLL_STATE["stopRequested"]:
-          set_step(f"Bảo hiểm vé trễ: Đang nhận lại thư & quay bù vé...")
-          await ws.send(_pkt_msg(61))
-          await asyncio.sleep(0.40)
-          for _ in range(6):
-            if REROLL_STATE["stopRequested"]:
-              break
-            await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 2, 1)))
-            await asyncio.sleep(0.40)
+          await asyncio.sleep(0.35)
 
         # 3. KIỂM TRA PHÔI ĐỎ SAU KHI QUAY THIÊN MỆNH:
         red_counts = {h: heroes_5star.count(h) for h in ALL_RED_HEROES}
         phoi_heroes = [h for h in ALL_RED_HEROES if red_counts[h] >= 1]
         has_target_phoi = len(phoi_heroes) > 0
 
-        # 4. XẢ 10 VÉ TAM GIỚI:
-        # Nếu đã có phôi: dồn theo hệ của phôi để chốt 2x!
+        # 4. XẢ ĐỦ 2 LẦN X10 VÉ TAM GIỚI (20 LƯỢT):
+        # Nếu đã có phôi: dồn theo hệ của phôi để chốt 2x/3x!
         # Nếu chưa có phôi: dồn vào Hệ Tiên (camp 4) để săn Dương Tiễn / Na Tra / Lý Tịnh!
         if not REROLL_STATE["stopRequested"]:
           if has_target_phoi:
@@ -2201,12 +2188,13 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
             camp_id = HERO_CAMP_MAP.get(best_hero, 4)
             camp_names = {2: "Nhân", 3: "Phật/Minh", 4: "Tiên", 5: "Yêu"}
             camp_label = f"Hệ {camp_names.get(camp_id, 'Tiên')} (Săn 2x {best_hero})"
-            set_step(f"🔥 ĐÃ CÓ PHÔI! Đang xả 10 vé Tam Giới vào {camp_label} ({best_hero}:{red_counts[best_hero]})...")
+            set_step(f"🔥 ĐÃ CÓ PHÔI! Đang xả 2 lần x10 Tam Giới vào {camp_label} ({best_hero}:{red_counts[best_hero]})...")
           else:
             camp_id = 4
-            set_step("Đang xả 10 vé Tam Giới vào Hệ Tiên (Săn Dương Tiễn / Na Tra)...")
-          await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 2, 1)))
-          await asyncio.sleep(0.44)
+            set_step("Đang xả 2 lần x10 Tam Giới vào Hệ Tiên (Săn Dương Tiễn / Na Tra)...")
+          for _ in range(2):
+            await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 2, 1)))
+            await asyncio.sleep(0.35)
 
         await asyncio.sleep(0.24)
 
@@ -2661,15 +2649,16 @@ async def _push_winner_to_sales_bot_async(res):
     if tg_token and tg_chat:
       try:
         tg_url = f"https://api.telegram.org/bot{tg_token}/sendMessage"
+        srv_title = str(payload['server_name']).replace("[", "").replace("]", "").replace(" Mới Nhất", "")
+        summary_line = f"{srv_title} ({payload['server_id']}) -> {payload['jackpot_type']} | Code: {payload['codes_claimed']} | Ngọc=3820 | Tổng 5★={payload['total_5star']} 🔥🔥🔥🔥🔥🔥"
         tg_text = (
-            f"🎉 <b>[NỔ NICK 2x MÁY {MACHINE_ID.upper()}]</b>\n"
-            f"🎯 <b>Tướng:</b> {payload['jackpot_type']}\n"
+            f"🎉 <b>[NỔ NICK 2x MÁY {MACHINE_ID.upper()}]</b>\n\n"
+            f"🔥 <b>{summary_line}</b>\n\n"
             f"🔑 <b>TK:</b> <code>{payload['account']}</code>\n"
             f"🔒 <b>MK:</b> <code>{payload['password']}</code>\n"
-            f"🖥️ <b>Server:</b> {payload['server_name']}\n"
-            f"⭐ <b>Tổng 5★:</b> {payload['total_5star']} | <b>Cấp:</b> Lv.{payload['level']}\n"
-            f"🆔 <b>UID:</b> {payload['funtap_id']}\n"
-            f"⏰ <b>Giờ:</b> {payload['time']}"
+            f"🆔 <b>UID:</b> <code>{payload['funtap_id']}</code>\n"
+            f"⭐ <b>Đội hình 5★:</b> {', '.join(payload.get('heroes_5star', []))}\n"
+            f"⏰ <b>Thời gian:</b> {payload['time']}"
         )
         tg_data = json.dumps({"chat_id": tg_chat, "text": tg_text, "parse_mode": "HTML"}).encode("utf-8")
         req_tg = urllib.request.Request(tg_url, data=tg_data, headers={"Content-Type": "application/json"}, method="POST")
@@ -2942,20 +2931,16 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
             if not REROLL_STATE["running"] or REROLL_STATE["stopRequested"]:
               break
             step_now = REROLL_STATE.get("stepMsg") or ""
-          # Tự động quét Server mới mỗi 15 giây ngay trong lúc đang chạy!
-          if sid_str in ("latest", "auto", "0", "") and (time.time() - last_srv_check_ts[0] >= 15.0):
+          # Tự động quét Server mới mỗi 30 giây ngay trong lúc đang chạy!
+          if time.time() - last_srv_check_ts[0] >= 30.0:
             last_srv_check_ts[0] = time.time()
             try:
               latest_cand = await asyncio.to_thread(fetch_latest_server_live)
               if latest_cand and int(latest_cand.get("sid") or 0) > int(srv_info.get("sid") or 0):
                 srv_info = latest_cand
-                with REROLL_LOCK:
-                  reusable_ready = sum(
-                      1 for item in REUSABLE_POOL.values() if int(item.get("sid") or 0) < int(srv_info["sid"])
-                  )
                 print(
-                    f"\n🆕 PHÁT HIỆN SERVER MỚI MỞ: {srv_info['name']} ({srv_info['sid']}) "
-                    f"=> Tự động chuyển toàn bộ {PARALLEL_REROLL_WORKERS} luồng sang Server mới & TÁI SỬ DỤNG NGAY {reusable_ready} phôi nick có sẵn!\n",
+                    f"\n🆕 [AUTO-MIGRATE] PHÁT HIỆN SERVER MỚI MỞ: {srv_info['name']} ({srv_info['sid']}) "
+                    f"=> Tự động chuyển toàn bộ {PARALLEL_REROLL_WORKERS} luồng sang Server mới ngay lập tức!\n",
                     flush=True,
                 )
             except Exception:
