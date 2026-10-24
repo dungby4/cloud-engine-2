@@ -2851,7 +2851,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                     "prevSid": int(item.get("sid") or 0),
                 }
 
-        # 2. Đăng ký nick mới 100%: Thử lại Hub liên tục, nếu Hub trống mới dùng bộ đăng ký cục bộ
+        # 2. Bốc nick tươi mới 100% từ Account Hub (GitHub Actions cấp 24/7)
         while True:
           with REROLL_LOCK:
             if REROLL_STATE["stopRequested"]:
@@ -2859,68 +2859,8 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
           hub_acc = _pop_account_from_hub()
           if hub_acc:
             return hub_acc
-          # Chờ ngắn 1.5s để đón mẻ nick tươi mới nhất từ GitHub Actions rót vào Hub
-          time.sleep(1.5)
-          hub_acc2 = _pop_account_from_hub()
-          if hub_acc2:
-            return hub_acc2
-
-          with reg_lock:
-            now_t = time.time()
-            diff = now_t - last_reg_ts[0]
-            if diff < 5.0:
-              time.sleep(5.0 - diff)
-            last_reg_ts[0] = time.time()
-
-            with num_lock:
-              while _format_vip_username(base_prefix, num_cursor[0]) in existing_names:
-                num_cursor[0] += 1
-              cand_name = _format_vip_username(base_prefix, num_cursor[0])
-              existing_names.add(cand_name)
-              num_cursor[0] += 1
-            strong_pwd = _gen_strong_password(10)
-            reg = funtap_register_real_account(cand_name, strong_pwd)
-            if reg.get("ok"):
-              fid = str(reg.get("accountId") or "")
-              with num_lock:
-                if fid and fid not in used_funtap_ids:
-                  used_funtap_ids.add(fid)
-                  with REROLL_LOCK:
-                    IN_FLIGHT_USERS.add(cand_name)
-                  reg["reused"] = False
-                  return reg
-            elif reg.get("rateLimited"):
-              wait_sec = max(60, int(reg.get("retryAfter") or 25) + 5)
-              print(f"⚠️ [Funtap 429 Rate Limit] IP bị giới hạn (15 req/phút). Đang nghỉ {wait_sec}s để hồi phục hoàn toàn cửa sổ rate limit...", flush=True)
-              time.sleep(wait_sec)
-              last_reg_ts[0] = time.time()
-            elif reg.get("taken"):
-              # Kiểm tra xem nick này đã được đăng ký chuẩn và chưa có nhân vật nào không
-              pre_auth = funtap_login_authenticate(cand_name, "tphtd12345")
-              if pre_auth.get("ok") and len(pre_auth.get("characters", [])) == 0:
-                print(f"✨ Phát hiện nick mới {cand_name} đã đăng ký sẵn (0 nhân vật) => Đưa vào quay ngay!", flush=True)
-                with REROLL_LOCK:
-                  IN_FLIGHT_USERS.add(cand_name)
-                return {
-                    "ok": True,
-                    "username": cand_name,
-                    "password": "tphtd12345",
-                    "accountId": pre_auth.get("accountId") or pre_auth.get("montarAccountId"),
-                    "funId": pre_auth.get("funId"),
-                    "accessToken": pre_auth.get("accessToken", "r"),
-                    "reused": False,
-                }
-              with num_lock:
-                num_cursor[0] += 1
-              time.sleep(0.1)
-            elif reg.get("recaptchaFailed"):
-              print(f"⚠️ [Funtap reCAPTCHA] Đang chờ 30s để giải phóng hạn mức IP...", flush=True)
-              time.sleep(30.0)
-              last_reg_ts[0] = time.time()
-            else:
-              err_code = reg.get("error")
-              print(f"⚠️ [Funtap Error] Chưa thể đăng ký {cand_name} ({err_code}). Nghỉ 3s thử lại...", flush=True)
-              time.sleep(3.0)
+          # Chờ ngắn 2.0s để đón mẻ nick tươi mới nhất từ GitHub Actions rót vào Hub
+          time.sleep(2.0)
 
       completed_cnt = 0
       jackpot_cnt = 0
