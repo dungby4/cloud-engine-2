@@ -2859,6 +2859,12 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
           hub_acc = _pop_account_from_hub()
           if hub_acc:
             return hub_acc
+          # Chờ ngắn 1.5s để đón mẻ nick tươi mới nhất từ GitHub Actions rót vào Hub
+          time.sleep(1.5)
+          hub_acc2 = _pop_account_from_hub()
+          if hub_acc2:
+            return hub_acc2
+
           with reg_lock:
             now_t = time.time()
             diff = now_t - last_reg_ts[0]
@@ -2987,9 +2993,13 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
               with REROLL_LOCK:
                 if REROLL_STATE["stopRequested"]:
                   return
-              reg_info = await asyncio.to_thread(_acquire_or_register_account, cur_sid_int)
+              try:
+                reg_info = await asyncio.to_thread(_acquire_or_register_account, cur_sid_int)
+              except Exception:
+                reg_info = None
               if not reg_info:
-                return
+                await asyncio.sleep(1.0)
+                continue
               try:
                 res = await _reroll_single_account(reg_info, cur_srv, f"{idx_order}/{count}", seq_num=idx_order)
               finally:
