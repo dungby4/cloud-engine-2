@@ -1308,8 +1308,8 @@ def _parse_heroes_from_target_and_sub(target_raw, other_raw):
 
 
 def _format_winner_pipe_line(r):
-  """Định dạng chuẩn 1 dòng (ngăn cách bằng dấu |) gọn nhẹ, không lưu link thừa:
-  user | pass | server (sid) | [X2/X3] tuong_trung | tong_5s | tuong_5s_phu | uid_nap | anh_chup | thoi_gian"""
+  """Định dạng chuẩn 1 dòng (ngăn cách bằng dấu |) gọn nhẹ:
+  user | pass | server (sid) | [X2/X3] tuong_trung | tong_5s | tuong_5s_phu | uid_nap | anh_chup | thoi_gian | code_chua_an"""
   from collections import Counter
   h5 = r.get("heroes5Star") or r.get("heroes") or []
   c = Counter(h5)
@@ -1345,7 +1345,9 @@ def _format_winner_pipe_line(r):
   fid = str(r.get("funtapId") or "")
   img = str(r.get("screenshot") or "-")
   t_str = str(r.get("time") or time.strftime("%Y-%m-%d %H:%M:%S"))
-  return f"{acc_u} | {pwd} | {srv_col} | {target_str} | {len(h5)}★ | {other_str} | {fid} | {img} | {t_str}"
+  unconfirmed = r.get("unconfirmedCodes") or []
+  unconfirmed_str = ", ".join(unconfirmed) if unconfirmed else "Đủ code"
+  return f"{acc_u} | {pwd} | {srv_col} | {target_str} | {len(h5)}★ | {other_str} | {fid} | {img} | {t_str} | {unconfirmed_str}"
 
 
 def _sync_winners_from_txt():
@@ -1377,13 +1379,18 @@ def _sync_winners_from_txt():
         other_raw = parts[5] if len(parts) > 5 else ""
         fid = parts[6] if len(parts) > 6 else ""
         img_path = parts[7] if len(parts) > 7 and parts[7] != "-" else ""
-        # Hỗ trợ cả bản 9 cột (không link) và 10 cột (có link)
+        # Hỗ trợ cả bản 9 cột (không link) và 10-11 cột (có link hoặc có code chưa ăn)
+        unconfirmed_list = []
         if len(parts) >= 10 and parts[8].startswith("http"):
           lnk_raw = parts[8]
           t_str = parts[9]
+          if len(parts) >= 11 and parts[10] != "Đủ code":
+            unconfirmed_list = [c.strip() for c in parts[10].split(",") if c.strip()]
         else:
           lnk_raw = ""
           t_str = parts[8] if len(parts) > 8 else ""
+          if len(parts) >= 10 and parts[9] != "Đủ code":
+            unconfirmed_list = [c.strip() for c in parts[9].split(",") if c.strip()]
 
         m_sid = re.search(r"(61\d{4})", srv_col) or re.search(r"sid=(\d+)", lnk_raw)
         sid_val = int(m_sid.group(1)) if m_sid else 610065
@@ -1416,6 +1423,8 @@ def _sync_winners_from_txt():
             "targetHeroes": badges,
             "hasTarget": True,
             "isJackpot2x": True,
+            "unconfirmedCodes": unconfirmed_list,
+            "codesClaimed": f"{len(REROLL_GIFTCODES) - len(unconfirmed_list)}/{len(REROLL_GIFTCODES)}",
             "time": t_str,
         })
 
@@ -1608,7 +1617,7 @@ def _save_reroll_files(force=False):
     header_lines = (
         "# =========================================================================================================================\n"
         f"# DANH SÁCH NICK TRÚNG 2x/3x DƯƠNG TIỄN - TÔN NGỘ KHÔNG - NA TRA - LÝ TỊNH - ĐƯỜNG TĂNG (TỔNG: {len(winners_only)} NICK) — BÁN NICK NÀO CHỈ CẦN XÓA 1 DÒNG ĐÓ\n"
-        "# CẤU TRÚC: USER | PASS | SERVER (SID) | [X2/X3] TƯỚNG TRÚNG | TỔNG 5★ | TƯỚNG 5★ PHỤ | UID NẠP | ẢNH CHỤP | THỜI GIAN\n"
+        "# CẤU TRÚC: USER | PASS | SERVER (SID) | [X2/X3] TƯỚNG TRÚNG | TỔNG 5★ | TƯỚNG 5★ PHỤ | UID NẠP | ẢNH CHỤP | THỜI GIAN | CODE CHƯA ĂN\n"
         "# =========================================================================================================================\n"
     )
     body_lines = "\n".join(_format_winner_pipe_line(r) for r in winners_only) + ("\n" if winners_only else "")
@@ -1634,6 +1643,7 @@ def _save_reroll_files(force=False):
           "UID Nạp",
           "Ảnh Thần Tướng",
           "Thời Gian",
+          "Code Chưa Ăn",
       ])
       for r in winners_only:
         h5 = r.get("heroes5Star") or r.get("heroes") or []
@@ -1661,6 +1671,8 @@ def _save_reroll_files(force=False):
         dtt_cnt = c.get("Đường Tam Tạng", 0)
         if dtt_cnt >= 1 and not any("Đường Tam Tạng" in b for b in badges):
           badges.append(f"{dtt_cnt}x Đường Tam Tạng")
+        unconfirmed = r.get("unconfirmedCodes") or []
+        unconf_s = ", ".join(unconfirmed) if unconfirmed else "Đủ code"
         writer.writerow([
             r.get("account", ""),
             r.get("password", "tphtd123"),
@@ -1672,6 +1684,7 @@ def _save_reroll_files(force=False):
             fid,
             r.get("screenshot") or "-",
             r.get("time") or "",
+            unconf_s,
         ])
     os.replace(tmp_csv, os.path.join(DIRECTORY, "DAN_NICK_TRUNG_TUONG.csv"))
   except Exception:
@@ -1998,65 +2011,59 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         await ws.send(_pkt_msg(61))
         await asyncio.sleep(0.35)
 
-        # CHẾ ĐỘ MỞ ALL 100% (KHÔNG CHƠI XÁC SUẤT - MỌI NICK ĐỀU XẢ SẠCH 68 THIÊN MỆNH + 14 TAM GIỚI):
-        # 1. Đã mở 250 mảnh 5★ (5 tướng). Riêng 11 mảnh lẻ giữ nguyên trong túi không ghép ép.
-        # 2. Xả sạch 100% 68 lượt Thiên Mệnh (1 đơn + 6 lần x10 + 7 lần đơn)
+        # CHẾ ĐỘ QUAY X10 SIÊU TỐC (CHỈ QUAY X10, KHÔNG QUAY LẺ, SKIP SỚM KHI TRẮNG PHÔI):
+        # 1. Đã mở 250 mảnh 5★ (5 tướng).
+        # 2. Xả 6 lần x10 Thiên Mệnh (60 vé). Bỏ toàn bộ các lượt quay đơn lẻ để tối đa tốc độ.
         await ws.send(_pkt_msg(1320, b"\x01"))
         await asyncio.sleep(0.10)
-
-        set_step(f"Đang xả 68 vé Thiên Mệnh (DT:{dt_count} | TNK:{tnk_count})...")
-        await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 1, 1)))
-        await asyncio.sleep(0.44)
 
         for p_idx in range(1, 7):
           if REROLL_STATE["stopRequested"]:
             break
-          set_step(f"Đang quay Thiên Mệnh x10 lần {p_idx}/6 (DT:{dt_count} | TNK:{tnk_count})...")
+          set_step(f"Đang quay Thiên Mệnh x10 lần {p_idx}/6 (DT:{dt_count} | TNK:{tnk_count} | NT:{nt_count} | LT:{lt_count} | DTT:{dtt_count})...")
           await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 2, 1)))
           await asyncio.sleep(0.44)
 
-        for _ in range(7):
-          if REROLL_STATE["stopRequested"]:
-            break
-          await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 1, 1)))
-          await asyncio.sleep(0.38)
+        # 3. KIỂM TRA PHÔI ĐỎ SAU 250 MẢNH + 60 LƯỢT THIÊN MỆNH:
+        has_target_phoi = (dt_count >= 1) or (tnk_count >= 1) or (nt_count >= 1) or (lt_count >= 1) or (dtt_count >= 1)
 
-        # 3. Xả sạch 100% 14 vé Tam Giới cho MỌI NICK (Không lọc xác suất nữa, vắt kiệt 100% cơ hội nổ 2x)
-        # Ưu tiên dồn hệ: có Dương Tiễn -> Tiên (4); có Ngộ Không -> Yêu (5); chưa có cả 2 -> Tiên (4 - Dương Tiễn hot nhất)
-        if dt_count > tnk_count and dt_count >= 1:
-          camp_id = 4
-          camp_label = "Hệ Tiên (Săn 2x Dương Tiễn)"
-        elif tnk_count > dt_count and tnk_count >= 1:
-          camp_id = 5
-          camp_label = "Hệ Yêu (Săn 2x Tôn Ngộ Không)"
-        else:
-          camp_id = 4
-          camp_label = "Hệ Tiên (Săn Dương Tiễn)"
+        # 4. NẾU ĐÃ CÓ PHÔI (>= 1 TƯỚNG ĐỎ MỤC TIÊU): Dồn ngay 1 lần x10 Tam Giới theo đúng hệ để chốt 2x!
+        if has_target_phoi and not REROLL_STATE["stopRequested"]:
+          if dt_count > tnk_count and dt_count >= 1:
+            camp_id = 4
+            camp_label = "Hệ Tiên (Săn 2x Dương Tiễn)"
+          elif tnk_count > dt_count and tnk_count >= 1:
+            camp_id = 5
+            camp_label = "Hệ Yêu (Săn 2x Tôn Ngộ Không)"
+          elif nt_count >= 1 or lt_count >= 1:
+            camp_id = 4
+            camp_label = "Hệ Tiên (Săn 2x Na Tra / Lý Tịnh)"
+          elif dtt_count >= 1:
+            camp_id = 4
+            camp_label = "Hệ Tiên (Săn 2x Đường Tăng)"
+          else:
+            camp_id = 4
+            camp_label = "Hệ Tiên (Săn Dương Tiễn)"
 
-        set_step(f"Đang xả sạch 14 vé Tam Giới vào {camp_label} (DT:{dt_count} | TNK:{tnk_count})...")
-        await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 2, 1)))
-        await asyncio.sleep(0.46)
-
-        for _ in range(4):
-          if REROLL_STATE["stopRequested"]:
-            break
-          await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 1, 1)))
-          await asyncio.sleep(0.38)
-
-        # LƯỚI BẢO HIỂM AN TOÀN TUYỆT ĐỐI (SAFETY NET):
-        # Nếu tổng tướng 5★ vẫn < 8 (chứng tỏ server trễ thư vé khiến đợt quay đầu hụt vé):
-        # Tự động nhận lại thư và quay bù toàn bộ 6x10 Thiên Mệnh + Tam Giới!
-        if len(heroes_5star) < 8 and not REROLL_STATE["stopRequested"]:
-          set_step(f"Bảo hiểm vé trễ: Đang nhận lại thư & quay bù vé (DT:{dt_count} | TNK:{tnk_count})...")
-          await ws.send(_pkt_msg(61))
-          await asyncio.sleep(0.50)
-          for _ in range(6):
-            if REROLL_STATE["stopRequested"]:
-              break
-            await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 2, 1)))
-            await asyncio.sleep(0.42)
+          set_step(f"🔥 ĐÃ CÓ PHÔI! Đang xả 10 vé Tam Giới vào {camp_label} (DT:{dt_count} | TNK:{tnk_count} | NT:{nt_count} | LT:{lt_count} | DTT:{dtt_count})...")
           await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 2, 1)))
-          await asyncio.sleep(0.44)
+          await asyncio.sleep(0.46)
+
+          # LƯỚI BẢO HIỂM: Chỉ chạy nếu nick ĐÃ CÓ PHÔI mà bị thiếu vé do trễ thư
+          if len(heroes_5star) < 8 and not REROLL_STATE["stopRequested"]:
+            set_step(f"Bảo hiểm vé trễ: Đang nhận lại thư & quay bù vé...")
+            await ws.send(_pkt_msg(61))
+            await asyncio.sleep(0.50)
+            for _ in range(6):
+              if REROLL_STATE["stopRequested"]:
+                break
+              await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 2, 1)))
+              await asyncio.sleep(0.42)
+            await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 2, 1)))
+            await asyncio.sleep(0.44)
+        else:
+          # TRẮNG PHÔI: Không có tướng đỏ nào -> Bỏ qua Tam Giới x10 luôn, tiết kiệm tối đa thời gian
+          set_step("Không có phôi đỏ (Trắng phôi ➜ Bỏ qua nhanh)...")
 
         await asyncio.sleep(0.24)
 
@@ -2447,6 +2454,10 @@ async def _push_winner_to_sales_bot_async(res):
         except Exception:
           pass
 
+  unconfirmed = res.get("unconfirmedCodes") or []
+  unconfirmed_str = ", ".join(unconfirmed) if unconfirmed else ""
+  codes_stat = res.get("codesClaimed") or f"{len(REROLL_GIFTCODES) - len(unconfirmed)}/{len(REROLL_GIFTCODES)}"
+
   payload = {
       "machine_id": MACHINE_ID,
       "account": res.get("account"),
@@ -2462,6 +2473,10 @@ async def _push_winner_to_sales_bot_async(res):
       "screenshot_path": snap_path,
       "screenshot_base64": photo_b64,
       "screenshot_filename": photo_fn,
+      "codes_claimed": codes_stat,
+      "unconfirmed_codes": unconfirmed,
+      "unconfirmed_codes_str": unconfirmed_str,
+      "notes": f"Code chưa ăn: {unconfirmed_str}" if unconfirmed_str else "Đã ăn đủ 28/28 code",
       "time": res.get("time") or time.strftime("%Y-%m-%d %H:%M:%S"),
   }
 

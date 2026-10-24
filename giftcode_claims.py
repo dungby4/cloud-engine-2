@@ -9,7 +9,7 @@ from websockets.exceptions import ConnectionClosed
 
 
 class GiftcodeClaims:
-  def __init__(self, min_interval=0.65, timeout=3.0, max_attempts=3):
+  def __init__(self, min_interval=0.55, timeout=2.5, max_attempts=2):
     self.min_interval = min_interval
     self.timeout = timeout
     self.max_attempts = max_attempts

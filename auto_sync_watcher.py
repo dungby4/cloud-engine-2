@@ -90,12 +90,20 @@ def main() -> None:
                     danh_sach = parts[5] if len(parts) > 5 else ""
                     funtap_id = parts[6] if len(parts) > 6 else ""
                     photo_name = Path(parts[7]).name if len(parts) > 7 else f"{acc}.png"
+                    time_col = parts[8] if len(parts) > 8 else ""
+                    unconfirmed_str = parts[9] if len(parts) > 9 else ""
+                    unconf_list = [c.strip() for c in unconfirmed_str.split(",") if c.strip() and c.strip() != "Đủ code"]
+                    codes_stat = f"{28 - len(unconf_list)}/28" if unconf_list else "28/28"
 
                     if acc in synced_accounts:
                         continue
 
                     # New account detected!
                     print(f"\n⚡ Phát hiện nick mới: {acc} | {tuong} ({so_sao}) | {server}")
+                    if unconf_list:
+                        print(f"   ⚠️ Code chưa ăn: {', '.join(unconf_list)}")
+                    else:
+                        print(f"   ✅ Đã ăn đủ {codes_stat} Giftcode")
 
                     # Find photo and encode base64
                     photo_b64 = None
@@ -168,13 +176,17 @@ def main() -> None:
                         "server_id": 0,
                         "server_name": server,
                         "jackpot_type": tuong,
-                        "total_5star": 5,
+                        "total_5star": int(so_sao.replace("★", "").strip()) if "★" in so_sao else 5,
                         "target_heroes": [tuong],
-                        "heroes_5star": [x.strip() for x in danh_sach.split(",") if x.strip()],
+                        "heroes_5star": [x.strip() for x in danh_sach.split("+") if x.strip()],
                         "screenshot_path": str(photo_candidate) if photo_candidate.exists() else "",
                         "screenshot_base64": photo_b64,
                         "screenshot_filename": send_fn,
-                        "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                        "codes_claimed": codes_stat,
+                        "unconfirmed_codes": unconf_list,
+                        "unconfirmed_codes_str": ", ".join(unconf_list),
+                        "notes": f"Code chưa ăn: {', '.join(unconf_list)}" if unconf_list else "Đã ăn đủ 28/28 code",
+                        "time": time_col or time.strftime("%Y-%m-%d %H:%M:%S"),
                     }
 
                     try:
