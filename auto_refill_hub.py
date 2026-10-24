@@ -18,7 +18,7 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
 HUB_STATS_URL = "https://152-69-209-107.sslip.io/api/accounts/stats"
 FEEDER_REPO = "truongqv12/htd-account-feeder"
 THRESHOLD = 350
-COUNT_PER_JOB = 60  # 20 workers * 60 = 1,200 accounts per run
+COUNT_PER_JOB = 20  # 20 workers * 20 = 400 accounts per fast 1.5-min wave (auto-rotates Azure IP before rate limit)
 
 # Duy trì bơm nick liên tục 24/7 trên repo public mỗi khi kho xuống dưới THRESHOLD
 CYCLE_RUN_MINUTES = 60
