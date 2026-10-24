@@ -75,7 +75,7 @@ DEFAULT_CONFIG = {
     "fresh_only": False,
     "scan_direction": "auto",
     "parity": "auto",
-    "threads": 36,
+    "threads": 48,
     "port": 8088,
     "target_server": "latest",
     "min_copies": 2,
@@ -180,7 +180,7 @@ PORT = int(APP_CONFIG.get("port") or 8088)
 MACHINE_ID = str(APP_CONFIG.get("machine_id") or "m1")
 ACCOUNT_PREFIX = str(APP_CONFIG.get("account_prefix") or "htdvipa")
 FRESH_ONLY = bool(APP_CONFIG.get("fresh_only", True))
-PARALLEL_REROLL_WORKERS = int(APP_CONFIG.get("threads") or 36)
+PARALLEL_REROLL_WORKERS = int(APP_CONFIG.get("threads") or 48)
 
 CDN_BASE = "https://rescdnft105vn.ridvqqxa.com/13528/"
 CDN_CACHE_DIR = os.path.join(DIRECTORY, "cdn_cache")
@@ -2730,7 +2730,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                   )
                 print(
                     f"\n🆕 PHÁT HIỆN SERVER MỚI MỞ: {srv_info['name']} ({srv_info['sid']}) "
-                    f"=> Tự động chuyển toàn bộ 24 luồng sang Server mới & TÁI SỬ DỤNG NGAY {reusable_ready} phôi nick có sẵn!\n",
+                    f"=> Tự động chuyển toàn bộ {PARALLEL_REROLL_WORKERS} luồng sang Server mới & TÁI SỬ DỤNG NGAY {reusable_ready} phôi nick có sẵn!\n",
                     flush=True,
                 )
             except Exception:
@@ -3327,9 +3327,9 @@ class DAutoAIRequestHandler(SimpleHTTPRequestHandler):
 
       <div id="statusBox" class="status-msg"></div>
 
-      <!-- 0. TÍCH HỢP TRỰC TIẾP: TẠO DÀN NICK & SĂN 2x DƯƠNG TIỄN / 2x NGỘ KHÔNG (8 LUỒNG SONG SONG) -->
+      <!-- 0. TÍCH HỢP TRỰC TIẾP: TẠO DÀN NICK & SĂN 2x DƯƠNG TIỄN / 2x NGỘ KHÔNG (48 LUỒNG SONG SONG) -->
       <div class="card-box" style="border-color:#F59E0B;background:linear-gradient(180deg,#131C31 0%,#0B1120 100%);">
-        <div class="card-title" style="color:#FBBF24;">🎰 Tự Động Săn 2x Dương Tiễn / 2x Ngộ Không (8 Luồng)</div>
+        <div class="card-title" style="color:#FBBF24;">🎰 Tự Động Săn 2x Thần Tướng (48 Luồng Siêu Tốc)</div>
         <div class="guide-tip" style="border-left-color:#F59E0B;font-size:11px;">
           Mỗi nick tự động: <b>27 Code VIP</b> ➜ <b>Mở 250 mảnh 5★ (5 tướng)</b> ➜ <b>68 lượt Thiên Mệnh</b> + <b>Dồn 14 vé Tam Giới</b> săn cặp <b>2x Dương Tiễn</b> hoặc <b>2x Ngộ Không</b>.
         </div>
