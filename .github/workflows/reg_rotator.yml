@@ -39,8 +39,8 @@ jobs:
 
       - name: Run Playwright Account Generator
         env:
-          HUB_URL: "https://152-69-209-107.sslip.io/api/accounts/push"
-          HUB_SECRET: "d57be08c4bbbc9c7feda86285611ee41fc8016d4f1bf4a1a7a60502d123b0ab3"
+          HUB_URL: ${{ secrets.HUB_URL }}
+          HUB_SECRET: ${{ secrets.HUB_SECRET }}
         run: |
           python scripts/github_reg_worker.py \
             --worker-id ${{ matrix.slot }} \

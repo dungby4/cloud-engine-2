@@ -4,7 +4,7 @@
   "fresh_only": true,
   "threads": 48,
   "port": 8088,
-  "target_server": "610083",
+  "target_server": "latest",
   "min_copies": 2,
   "gpm": {
     "enabled": true,

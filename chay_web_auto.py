@@ -77,7 +77,7 @@ DEFAULT_CONFIG = {
     "parity": "auto",
     "threads": 48,
     "port": 8088,
-    "target_server": "610083",
+    "target_server": "latest",
     "min_copies": 2,
     "hub_url": "https://152-69-209-107.sslip.io/api/accounts/pop",
     "server_list_url": "http://100.68.248.22:8088/api/server_list",
@@ -203,9 +203,7 @@ COMMAND_QUEUE = []
 # Complete Official Live Server List across all Clusters of Hắc Tây Du Funtap (Auto-synced from Funtap API)
 ALL_SERVERS_DATA = [
     # Cụm 9: Hỏa Diệm Sơn (S81 -> S90)
-    {"sid": "610085", "id": 85, "name": "[S85 Mới Nhất] Hỏa Diệm Sơn-S5", "server": "wss://wss-funtap-xy.xinliugame.net:9111/", "status": "1", "recommend": 1, "cluster": "Hỏa Diệm Sơn"},
-    {"sid": "610084", "id": 84, "name": "[S84] Hỏa Diệm Sơn-S4", "server": "wss://wss-funtap-xy.xinliugame.net:9110/", "status": "1", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
-    {"sid": "610083", "id": 83, "name": "[S83] Hỏa Diệm Sơn-S3", "server": "wss://wss-funtap-xy.xinliugame.net:9109/", "status": "1", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
+    {"sid": "610083", "id": 83, "name": "[S83 Mới Nhất] Hỏa Diệm Sơn-S3", "server": "wss://wss-funtap-xy.xinliugame.net:9109/", "status": "1", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
     {"sid": "610082", "id": 82, "name": "[S82] Hỏa Diệm Sơn-S2", "server": "wss://wss-funtap-xy.xinliugame.net:9108/", "status": "2", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
     {"sid": "610081", "id": 81, "name": "[S81] Hỏa Diệm Sơn-S1", "server": "wss://wss-funtap-xy.xinliugame.net:9107/", "status": "2", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
     # Cụm 8: Nữ Nhi Quốc (S71 -> S80)
