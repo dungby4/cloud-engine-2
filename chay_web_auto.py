@@ -2264,14 +2264,26 @@ async def _capture_winner_screenshot_async(res):
         await asyncio.sleep(0.8)
         await page.screenshot(path=out_path)
 
-        # Tự động nén ảnh bằng Pillow để tối ưu dung lượng và gửi Telegram mượt mà
+        # Tự động nén ảnh siêu gọn bằng Pillow (Resize 540p + JPEG q=72) để tối ưu dung lượng và gửi đồng bộ siêu nhanh
         try:
           from PIL import Image
           with Image.open(out_path) as im:
-            p_im = im.convert("P", palette=Image.ADAPTIVE, colors=256)
-            p_im.save(out_path, format="PNG", optimize=True)
+            if im.mode in ("RGBA", "LA", "P"):
+              im_rgb = im.convert("RGB")
+            else:
+              im_rgb = im
+            orig_w, orig_h = im_rgb.size
+            max_w = 540
+            if orig_w > max_w:
+              new_h = int(orig_h * (max_w / orig_w))
+              im_resized = im_rgb.resize((max_w, new_h), Image.Resampling.LANCZOS)
+            else:
+              im_resized = im_rgb
             jpg_path = os.path.splitext(out_path)[0] + ".jpg"
-            im.convert("RGB").save(jpg_path, format="JPEG", quality=82, optimize=True)
+            im_resized.save(jpg_path, format="JPEG", quality=72, optimize=True, progressive=True)
+            p_im = im_resized.convert("P", palette=Image.ADAPTIVE, colors=256)
+            p_im.save(out_path, format="PNG", optimize=True)
+            print(f"📸 [{acc_name}] Đã nén ảnh bằng chứng: JPG={os.path.getsize(jpg_path)//1024} KB | PNG={os.path.getsize(out_path)//1024} KB", flush=True)
         except Exception as e_compress:
           print(f"⚠️ [{acc_name}] Không thể nén ảnh: {e_compress}", flush=True)
 
@@ -2297,15 +2309,40 @@ async def _push_winner_to_sales_bot_async(res):
 
   snap_path = res.get("screenshot") or ""
   photo_b64 = None
-  photo_fn = os.path.basename(snap_path) if snap_path else f"{res.get('account')}.png"
+  photo_fn = os.path.basename(snap_path) if snap_path else f"{res.get('account')}.jpg"
   if snap_path:
     full_snap = os.path.join(DIRECTORY, snap_path) if not os.path.isabs(snap_path) else snap_path
-    if os.path.exists(full_snap):
+    jpg_snap = os.path.splitext(full_snap)[0] + ".jpg"
+    target_img = jpg_snap if os.path.exists(jpg_snap) else full_snap
+    if os.path.exists(target_img):
       try:
-        with open(full_snap, "rb") as f_img:
-          photo_b64 = base64.b64encode(f_img.read()).decode("ascii")
-      except Exception:
-        pass
+        from PIL import Image
+        import io
+        with Image.open(target_img) as im:
+          if im.mode in ("RGBA", "LA", "P"):
+            im = im.convert("RGB")
+          orig_w, orig_h = im.size
+          max_w = 540
+          if orig_w > max_w:
+            new_h = int(orig_h * (max_w / orig_w))
+            im = im.resize((max_w, new_h), Image.Resampling.LANCZOS)
+          buf = io.BytesIO()
+          im.save(buf, format="JPEG", quality=72, optimize=True, progressive=True)
+          img_bytes = buf.getvalue()
+        photo_b64 = base64.b64encode(img_bytes).decode("ascii")
+        photo_fn = os.path.splitext(os.path.basename(target_img))[0] + ".jpg"
+        orig_kb = os.path.getsize(target_img) // 1024
+        comp_kb = len(img_bytes) // 1024
+        print(f"📸 [Nén Ảnh Trước Khi Đồng Bộ] {photo_fn}: {orig_kb} KB ➔ {comp_kb} KB (Giảm {(1 - len(img_bytes)/max(1, os.path.getsize(target_img)))*100:.1f}%)", flush=True)
+      except Exception as e_comp:
+        print(f"⚠️ [Lỗi nén ảnh]: {e_comp}, sử dụng ảnh hiện có...", flush=True)
+        try:
+          with open(target_img, "rb") as f_img:
+            raw_b = f_img.read()
+            photo_b64 = base64.b64encode(raw_b).decode("ascii")
+            photo_fn = os.path.basename(target_img)
+        except Exception:
+          pass
 
   payload = {
       "machine_id": MACHINE_ID,

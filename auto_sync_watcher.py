@@ -99,13 +99,17 @@ def main() -> None:
 
                     # Find photo and encode base64
                     photo_b64 = None
-                    photo_candidate = photos_dir / photo_name
+                    send_fn = f"{acc}.jpg"
+                    jpg_cand = (photos_dir / photo_name).with_suffix(".jpg")
+                    png_cand = (photos_dir / photo_name).with_suffix(".png")
+                    photo_candidate = jpg_cand if jpg_cand.exists() else png_cand
+
                     if photo_name == "-" or not photo_candidate.exists():
                         # Tool auto may take 20-40 seconds to auto-run tutorial to Lv.5+ and capture screenshot
                         print(f"   ⏳ Đang chờ tool chạy tân thủ Lv.5+ & lưu xong ảnh chụp cho {acc} (tối đa 45s)...")
                         for _ in range(45):
                             time.sleep(1.0)
-                            matches = list(photos_dir.glob(f"*{acc}*.png"))
+                            matches = list(photos_dir.glob(f"*{acc}*.jpg")) + list(photos_dir.glob(f"*{acc}*.png"))
                             if matches:
                                 photo_candidate = matches[0]
                                 photo_name = photo_candidate.name
@@ -118,18 +122,39 @@ def main() -> None:
                     try:
                         from PIL import Image
                         import io
-                        with Image.open(photo_candidate) as img:
-                            rgb = img.convert("RGB")
+                        with Image.open(photo_candidate) as im:
+                            if im.mode in ("RGBA", "LA", "P"):
+                                im_rgb = im.convert("RGB")
+                            else:
+                                im_rgb = im
+                            orig_w, orig_h = im_rgb.size
+                            max_w = 540
+                            if orig_w > max_w:
+                                new_h = int(orig_h * (max_w / orig_w))
+                                im_resized = im_rgb.resize((max_w, new_h), Image.Resampling.LANCZOS)
+                            else:
+                                im_resized = im_rgb
                             buf = io.BytesIO()
-                            rgb.save(buf, format="JPEG", quality=82, optimize=True)
+                            im_resized.save(buf, format="JPEG", quality=72, optimize=True, progressive=True)
                             img_bytes = buf.getvalue()
                         photo_b64 = base64.b64encode(img_bytes).decode("ascii")
-                        print(f"   📸 Đã nén JPEG & đính kèm ảnh ({len(img_bytes)//1024} KB): {photo_candidate.name}")
+                        orig_kb = photo_candidate.stat().st_size // 1024
+                        comp_kb = len(img_bytes) // 1024
+                        send_fn = f"{photo_candidate.stem}.jpg"
+                        print(f"   📸 Đã nén ảnh siêu gọn ({orig_kb} KB ➔ {comp_kb} KB) & đính kèm: {send_fn}")
+                        cached_jpg = photos_dir / send_fn
+                        if not cached_jpg.exists():
+                            try:
+                                cached_jpg.write_bytes(img_bytes)
+                            except Exception:
+                                pass
                     except Exception as e:
+                        print(f"   ⚠️ Lỗi nén ảnh với Pillow ({e}), đọc ảnh trực tiếp...")
                         try:
                             raw_b = photo_candidate.read_bytes()
                             photo_b64 = base64.b64encode(raw_b).decode("ascii")
-                            print(f"   📸 Đã đính kèm ảnh gốc ({len(raw_b)//1024} KB): {photo_candidate.name}")
+                            send_fn = photo_candidate.name
+                            print(f"   📸 Đã đính kèm ảnh hiện có ({len(raw_b)//1024} KB): {send_fn}")
                         except Exception as e2:
                             print(f"   ⚠️ Lỗi đọc ảnh: {e2}")
                             continue
@@ -148,7 +173,7 @@ def main() -> None:
                         "heroes_5star": [x.strip() for x in danh_sach.split(",") if x.strip()],
                         "screenshot_path": str(photo_candidate) if photo_candidate.exists() else "",
                         "screenshot_base64": photo_b64,
-                        "screenshot_filename": photo_candidate.name if photo_candidate.exists() else photo_name,
+                        "screenshot_filename": send_fn,
                         "time": time.strftime("%Y-%m-%d %H:%M:%S"),
                     }
 

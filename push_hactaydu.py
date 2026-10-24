@@ -51,18 +51,35 @@ def main() -> None:
     if photos_dir.exists():
         print("\n📸 [1/3] Dong bo anh chup doi hinh len server...")
         try:
+            # Tu dong nen anh sieu gon truoc khi dong bo scp
+            try:
+                from PIL import Image
+                for p in photos_dir.glob("*.png"):
+                    if p.stat().st_size > 250 * 1024:
+                        with Image.open(p) as im:
+                            w, h = im.size
+                            if w > 540:
+                                h = int(h * (540 / w))
+                                im = im.resize((540, h), Image.Resampling.LANCZOS)
+                            jpg_p = p.with_suffix(".jpg")
+                            im.convert("RGB").save(jpg_p, "JPEG", quality=72, optimize=True)
+                            p_im = im.convert("P", palette=Image.ADAPTIVE, colors=256)
+                            p_im.save(p, "PNG", optimize=True)
+            except Exception as e_comp:
+                pass
+
             # Create remote photos dir
             subprocess.run(
                 ["ssh", f"{args.user}@{args.server}", "mkdir -p /home/truong/hactaydu_photos"],
                 check=True,
                 capture_output=True,
             )
-            # Copy all png files
-            png_files = list(photos_dir.glob("*.png"))
-            if png_files:
-                scp_cmd = f"scp \"{photos_dir}\\*.png\" {args.user}@{args.server}:/home/truong/hactaydu_photos/"
+            # Copy all compressed files
+            photo_files = list(photos_dir.glob("*.png")) + list(photos_dir.glob("*.jpg"))
+            if photo_files:
+                scp_cmd = f"scp \"{photos_dir}\\*.*\" {args.user}@{args.server}:/home/truong/hactaydu_photos/"
                 subprocess.run(scp_cmd, shell=True, check=True)
-                print(f"   ✅ Da sao chep {len(png_files)} anh chup sang server.")
+                print(f"   ✅ Da sao chep {len(photo_files)} anh da nen sang server.")
 
                 # Copy to container volume
                 subprocess.run(
@@ -77,7 +94,7 @@ def main() -> None:
                 )
                 print("   ✅ Da copy anh vao persistent storage cua container.")
             else:
-                print("   ⚠️ Khong co file anh .png nao trong thu muc.")
+                print("   ⚠️ Khong co file anh nao trong thu muc.")
         except Exception as exc:
             print(f"   ⚠️ Dong bo anh that bai: {exc}")
     else:
