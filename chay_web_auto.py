@@ -2848,15 +2848,9 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
         return None
 
       def _acquire_or_register_account(target_sid):
-        """Ưu tiên 1: Bốc nick tươi 100% từ Account Hub do GitHub Actions bơm vào (0ms).
-        Ưu tiên 2: Tự động đăng ký qua Headless Playwright (1.5s-2s) với bộ điều tốc 5s.
-        Ưu tiên 3: Nếu bật cờ --reuse thì mới quét kho nick cũ."""
+        """Nếu bật cờ --reuse (VPS 1 chẵn / VPS 2 lẻ): Quét trực tiếp kho nick cũ (~28,000 nick),
+        KHÔNG bốc từ Account Hub để nhường 100% nick tươi từ GitHub Actions cho Máy 1 (Local)."""
         target_sid_int = int(target_sid)
-
-        # 1. Bốc nick tươi mới 100% từ Account Hub (0ms)
-        hub_acc = _pop_account_from_hub()
-        if hub_acc:
-          return hub_acc
 
         if not FRESH_ONLY:
           pool_items = list(REUSABLE_POOL.items())
@@ -2884,7 +2878,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                     "prevSid": int(item.get("sid") or 0),
                 }
 
-        # 2. Bốc nick tươi mới 100% từ Account Hub (GitHub Actions cấp 24/7)
+        # Chế độ Mặc định (FRESH_ONLY) hoặc khi kho cũ đã quét hết 100% ở server hiện tại: Bốc nick tươi từ Account Hub
         while True:
           with REROLL_LOCK:
             if REROLL_STATE["stopRequested"]:
