@@ -2211,14 +2211,114 @@ async def _capture_winner_screenshot_async(res):
             break
         await asyncio.sleep(1.0)
 
-        # 1. Chờ thanh điều hướng chính (bt) của game sẵn sàng
+        # 1. TỰ ĐỘNG CHẠY NHIỆM VỤ TÂN THỦ & VƯỢT ẢI CHÍNH LÊN CẤP CHO NICK (Lv.1 -> Lv.5+)
+        cur_lv = 1
+        try:
+          init_lv = await page.evaluate("() => window.H && window.H.data ? (window.H.data.lv || window.H.data.level || 1) : 1")
+          cur_lv = init_lv
+          if init_lv < 5:
+            print(f"🎮 [{acc_name}] Đang tự động chạy nhiệm vụ tân thủ / vượt ải chính (Lv.{init_lv} -> Lv.5+)...", flush=True)
+            await page.evaluate("""() => {
+              if (window.HacTayDuAuto) {
+                try { window.HacTayDuAuto.cleanSkipTutorialNow(); } catch(e) {}
+                if (window.HacTayDuAuto.aiOptimizePowerAndTeam) {
+                  try { window.HacTayDuAuto.aiOptimizePowerAndTeam(true); } catch(e) {}
+                }
+                window.HacTayDuAuto.autoCampaign = true;
+                window.HacTayDuAuto.autoSkip = true;
+                if (window.HacTayDuAuto.setSpeed) window.HacTayDuAuto.setSpeed(5);
+              }
+              try {
+                if (typeof Ri !== 'undefined' && Ri.getInstance && Ri.getInstance().inStage()) {
+                  Ri.getInstance().onFight();
+                } else if (typeof Et !== 'undefined' && Et.show) {
+                  Et.show(1, '');
+                } else if (typeof n !== 'undefined' && n.CG_COMBAT_READY) {
+                  n.CG_COMBAT_READY(1, '', 0, 0);
+                }
+              } catch(e) {}
+            }""")
+
+            for sec in range(1, 45):
+              await asyncio.sleep(1.0)
+              cur_lv = await page.evaluate("() => window.H && window.H.data ? (window.H.data.lv || window.H.data.level || 1) : 1")
+              in_combat = await page.evaluate("() => !!(typeof De !== 'undefined' && De && De.isInCombat)")
+              if cur_lv >= 5 and not in_combat:
+                print(f"✅ [{acc_name}] Đã hoàn thành nhiệm vụ tân thủ! Đạt Lv.{cur_lv}", flush=True)
+                break
+
+              # Thúc đẩy hoàn thành chiến đấu & xử lý bảng kết quả / popup hướng dẫn
+              await page.evaluate("""() => {
+                try {
+                  if (typeof De !== 'undefined' && De && De.isInCombat) {
+                    De._pendingSkip = true;
+                    if (De.finishData) {
+                      De.endFlag = false;
+                      try { De.onEnd(); } catch(e) {}
+                    }
+                  }
+                } catch(e) {}
+
+                try {
+                  if (typeof qe !== 'undefined' && qe.getInstance && qe.getInstance().inStage()) {
+                    try { qe.getInstance().onNextCopy(); } catch(e) {
+                      try { qe.getInstance().close(); } catch(e2) {}
+                    }
+                  }
+                } catch(e) {}
+
+                try {
+                  if (window.HacTayDuAuto && window.HacTayDuAuto.cleanSkipTutorialNow) {
+                    window.HacTayDuAuto.cleanSkipTutorialNow();
+                  }
+                } catch(e) {}
+              }""")
+
+              if sec % 2 == 0 and not in_combat and cur_lv < 5:
+                await page.evaluate("""() => {
+                  try {
+                    if (typeof Ri !== 'undefined' && Ri.getInstance && Ri.getInstance().inStage()) {
+                      Ri.getInstance().onFight();
+                    } else if (typeof Et !== 'undefined' && Et.show) {
+                      Et.show(1, '');
+                    } else if (typeof n !== 'undefined' && n.CG_COMBAT_READY) {
+                      n.CG_COMBAT_READY(1, '', 0, 0);
+                    }
+                  } catch(e) {}
+                }""")
+                try:
+                  await page.mouse.click(360, 640)
+                except Exception:
+                  pass
+
+            # Dọn dẹp sau khi hoàn thành tân thủ
+            await page.evaluate("""() => {
+              if (window.HacTayDuAuto) {
+                window.HacTayDuAuto.autoCampaign = false;
+                try { window.HacTayDuAuto.cleanSkipTutorialNow(); } catch(e) {}
+              }
+              if (window.Laya && window.Laya.Dialog) {
+                try { window.Laya.Dialog.closeAll(); } catch(e) {}
+              }
+              if (typeof qe !== 'undefined' && qe.getInstance && qe.getInstance().inStage()) {
+                try { qe.getInstance().close(); } catch(e) {}
+              }
+            }""")
+            await asyncio.sleep(1.0)
+          else:
+            print(f"ℹ️ [{acc_name}] Tài khoản đã đạt Lv.{init_lv}, không cần chạy lại tân thủ.", flush=True)
+          res["level"] = cur_lv
+        except Exception as err_tan_thu:
+          print(f"⚠️ [{acc_name}] Lỗi khi chạy tân thủ: {err_tan_thu}", flush=True)
+
+        # 2. Chờ thanh điều hướng chính (bt) của game sẵn sàng
         for sec in range(25):
           await asyncio.sleep(1.0)
           ready = await page.evaluate("() => typeof bt !== 'undefined' && bt.getInstance && bt.getInstance().inStage && bt.getInstance().inStage()")
           if ready:
             break
 
-        # 2. Cấu hình sort ưu tiên tướng 2x & mở tab Thần Tướng
+        # 3. Cấu hình sort ưu tiên tướng 2x & mở tab Thần Tướng
         await page.evaluate("""() => {
           if (typeof at !== 'undefined') at.data = null;
           if (typeof De !== 'undefined') De.isInCombat = false;
@@ -2351,6 +2451,7 @@ async def _push_winner_to_sales_bot_async(res):
       "funtap_id": str(res.get("funtapId") or ""),
       "server_id": int(res.get("serverId") or 0),
       "server_name": res.get("serverName") or "",
+      "level": int(res.get("level") or 1),
       "jackpot_type": ", ".join(res.get("targetHeroes") or []) or "2x Thần Tướng",
       "total_5star": len(res.get("heroes5Star") or []),
       "target_heroes": res.get("targetHeroes") or [],
@@ -2392,7 +2493,7 @@ async def _push_winner_to_sales_bot_async(res):
             f"🔑 <b>TK:</b> <code>{payload['account']}</code>\n"
             f"🔒 <b>MK:</b> <code>{payload['password']}</code>\n"
             f"🖥️ <b>Server:</b> {payload['server_name']}\n"
-            f"⭐ <b>Tổng 5★:</b> {payload['total_5star']}\n"
+            f"⭐ <b>Tổng 5★:</b> {payload['total_5star']} | <b>Cấp:</b> Lv.{payload['level']}\n"
             f"🆔 <b>UID:</b> {payload['funtap_id']}\n"
             f"⏰ <b>Giờ:</b> {payload['time']}"
         )
@@ -2753,7 +2854,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                   f"🔥🔥 [TRÚNG 2x/3x THẦN TƯỚNG #{jackpot_cnt}] [{completed_cnt:02d}/{count}] ({mode_tag})\n"
                   f"   🎯 TRÚNG TƯỚNG : {', '.join(res['targetHeroes'])}\n"
                   f"   🔑 TÀI KHOẢN   : {disp_acc}   |   MẬT KHẨU: {disp_pwd}   (ID Nạp: {disp_uid})\n"
-                  f"   🖥️ MÁY CHỦ     : {res['serverName']}\n"
+                  f"   🖥️ MÁY CHỦ     : {res['serverName']}   |   CẤP ĐỘ: Lv.{res.get('level', 1)}\n"
                   f"   🎁 GIFTCODE    : Đã xác nhận {code_stat} mã\n"
                   f"   ⭐ TƯỚNG 5★ PHỤ ({len(res['heroes5Star'])} tổng): {other_summary}\n"
                   f"   📸 ẢNH CHỨNG MINH: {snap_rel or 'Đang lưu...'}\n"
