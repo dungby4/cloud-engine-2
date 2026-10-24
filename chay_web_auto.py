@@ -2013,37 +2013,38 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
           await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 2, 1)))
           await asyncio.sleep(0.44)
 
-        # 3. KIỂM TRA PHÔI ĐỎ SAU 250 MẢNH + 60 LƯỢT THIÊN MỆNH:
+        # LƯỚI BẢO HIỂM AN TOÀN: Nếu tổng tướng 5★ < 8 (chứng tỏ server trễ thư vé khiến đợt quay đầu hụt vé)
+        # Nhận lại thư và quay bù vé ngay lập tức
+        if len(heroes_5star) < 8 and not REROLL_STATE["stopRequested"]:
+          set_step(f"Bảo hiểm vé trễ: Đang nhận lại thư & quay bù vé...")
+          await ws.send(_pkt_msg(61))
+          await asyncio.sleep(0.40)
+          for _ in range(6):
+            if REROLL_STATE["stopRequested"]:
+              break
+            await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 2, 1)))
+            await asyncio.sleep(0.40)
+
+        # 3. KIỂM TRA PHÔI ĐỎ SAU KHI QUAY THIÊN MỆNH:
         red_counts = {h: heroes_5star.count(h) for h in ALL_RED_HEROES}
         phoi_heroes = [h for h in ALL_RED_HEROES if red_counts[h] >= 1]
         has_target_phoi = len(phoi_heroes) > 0
 
-        # 4. NẾU ĐÃ CÓ PHÔI (>= 1 TƯỚNG ĐỎ BẤT KỲ): Dồn ngay 1 lần x10 Tam Giới theo đúng hệ để chốt 2x!
-        if has_target_phoi and not REROLL_STATE["stopRequested"]:
-          best_hero = max(phoi_heroes, key=lambda h: (red_counts[h], -ALL_RED_HEROES.index(h)))
-          camp_id = HERO_CAMP_MAP.get(best_hero, 4)
-          camp_names = {2: "Nhân", 3: "Phật/Minh", 4: "Tiên", 5: "Yêu"}
-          camp_label = f"Hệ {camp_names.get(camp_id, 'Tiên')} (Săn 2x {best_hero})"
-
-          set_step(f"🔥 ĐÃ CÓ PHÔI! Đang xả 10 vé Tam Giới vào {camp_label} ({best_hero}:{red_counts[best_hero]})...")
+        # 4. XẢ 10 VÉ TAM GIỚI:
+        # Nếu đã có phôi: dồn theo hệ của phôi để chốt 2x!
+        # Nếu chưa có phôi: dồn vào Hệ Tiên (camp 4) để săn Dương Tiễn / Na Tra / Lý Tịnh!
+        if not REROLL_STATE["stopRequested"]:
+          if has_target_phoi:
+            best_hero = max(phoi_heroes, key=lambda h: (red_counts[h], -ALL_RED_HEROES.index(h)))
+            camp_id = HERO_CAMP_MAP.get(best_hero, 4)
+            camp_names = {2: "Nhân", 3: "Phật/Minh", 4: "Tiên", 5: "Yêu"}
+            camp_label = f"Hệ {camp_names.get(camp_id, 'Tiên')} (Săn 2x {best_hero})"
+            set_step(f"🔥 ĐÃ CÓ PHÔI! Đang xả 10 vé Tam Giới vào {camp_label} ({best_hero}:{red_counts[best_hero]})...")
+          else:
+            camp_id = 4
+            set_step("Đang xả 10 vé Tam Giới vào Hệ Tiên (Săn Dương Tiễn / Na Tra)...")
           await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 2, 1)))
-          await asyncio.sleep(0.46)
-
-          # LƯỚI BẢO HIỂM: Chỉ chạy nếu nick ĐÃ CÓ PHÔI mà bị thiếu vé do trễ thư
-          if len(heroes_5star) < 8 and not REROLL_STATE["stopRequested"]:
-            set_step(f"Bảo hiểm vé trễ: Đang nhận lại thư & quay bù vé...")
-            await ws.send(_pkt_msg(61))
-            await asyncio.sleep(0.50)
-            for _ in range(6):
-              if REROLL_STATE["stopRequested"]:
-                break
-              await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 2, 1)))
-              await asyncio.sleep(0.42)
-            await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 2, 1)))
-            await asyncio.sleep(0.44)
-        else:
-          # TRẮNG PHÔI: Không có tướng đỏ nào -> Bỏ qua Tam Giới x10 luôn, tiết kiệm tối đa thời gian
-          set_step("Không có phôi đỏ (Trắng phôi ➜ Bỏ qua nhanh)...")
+          await asyncio.sleep(0.44)
 
         await asyncio.sleep(0.24)
 
