@@ -208,20 +208,34 @@ def main() -> None:
                         "time": time_col or time.strftime("%Y-%m-%d %H:%M:%S"),
                     }
 
-                    try:
-                        data_bytes = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-                        headers = {
-                            "Content-Type": "application/json; charset=utf-8",
-                            "X-Webhook-Secret": args.secret,
-                            "Authorization": f"Bearer {args.secret}",
-                        }
-                        req = urllib.request.Request(args.url, data=data_bytes, headers=headers, method="POST")
-                        with urllib.request.urlopen(req, timeout=10) as resp:
-                            res_json = json.loads(resp.read().decode("utf-8"))
-                            status_code = resp.status
-                            print(f"   ✅ [BƠM THÀNH CÔNG MÁY {machine_tag.upper()}] Bot phản hồi: {res_json.get('status')} (HTTP {status_code})")
-                    except Exception as err:
-                        print(f"   ❌ Lỗi khi gửi Webhook lên Bot: {err}")
+                    success = False
+                    urls_to_try = [args.url]
+                    fallback_url = "https://152-69-209-107.sslip.io/api/v1/inventory/hactaydu-webhook"
+                    if fallback_url not in urls_to_try:
+                        urls_to_try.append(fallback_url)
+
+                    for target_url in urls_to_try:
+                        if not target_url:
+                            continue
+                        try:
+                            data_bytes = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                            headers = {
+                                "Content-Type": "application/json; charset=utf-8",
+                                "X-Webhook-Secret": args.secret,
+                                "Authorization": f"Bearer {args.secret}",
+                            }
+                            req = urllib.request.Request(target_url, data=data_bytes, headers=headers, method="POST")
+                            with urllib.request.urlopen(req, timeout=10) as resp:
+                                res_json = json.loads(resp.read().decode("utf-8"))
+                                status_code = resp.status
+                                print(f"   ✅ [BƠM THÀNH CÔNG MÁY {machine_tag.upper()}] Bot phản hồi: {res_json.get('status')} (HTTP {status_code})")
+                                success = True
+                                break
+                        except Exception as err:
+                            continue
+
+                    if not success:
+                        print(f"   ❌ Lỗi khi gửi Webhook lên Bot qua các cổng")
                         continue
 
                     # Mark synced
