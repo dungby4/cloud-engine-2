@@ -2311,9 +2311,9 @@ async def _capture_winner_screenshot_async(res):
         except Exception as err_tan_thu:
           print(f"⚠️ [{acc_name}] Lỗi khi chạy tân thủ: {err_tan_thu}", flush=True)
 
-        # 2. Chờ thanh điều hướng chính (bt) của game sẵn sàng
-        for sec in range(25):
-          await asyncio.sleep(1.0)
+        # 2. Chờ thanh điều hướng chính (bt) của game sẵn sàng (quét nhanh 0.5s)
+        for sec in range(50):
+          await asyncio.sleep(0.5)
           ready = await page.evaluate("() => typeof bt !== 'undefined' && bt.getInstance && bt.getInstance().inStage && bt.getInstance().inStage()")
           if ready:
             break
@@ -2341,9 +2341,9 @@ async def _capture_winner_screenshot_async(res):
           }
         }""")
 
-        # 3. Chờ hero panel mount trên stage
-        for s in range(15):
-          await asyncio.sleep(1.0)
+        # 3. Chờ hero panel mount trên stage (quét nhanh 0.5s)
+        for s in range(30):
+          await asyncio.sleep(0.5)
           inst_ready = await page.evaluate("() => typeof si !== 'undefined' && si.getInstance && si.getInstance().inStage && si.getInstance().inStage()")
           if inst_ready:
             break
@@ -2848,6 +2848,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
               print(f"⚠ [{completed_cnt:02d}/{count}] GIFTCODE {code_stat} | Chưa xác nhận: {'; '.join(details)}", flush=True)
             if res["isJackpot2x"]:
               jackpot_cnt += 1
+
               print(
                   f"\n{'='*88}\n"
                   f"🔥🔥 [TRÚNG 2x/3x THẦN TƯỚNG #{jackpot_cnt}] [{completed_cnt:02d}/{count}] ({mode_tag})\n"
@@ -2861,18 +2862,21 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                   flush=True,
               )
               _save_reroll_files()
-
               # Chụp ảnh và đẩy bot hoàn toàn chạy ngầm, tuyệt đối không bao giờ làm nghẽn 48 luồng cày
               async def _async_snap_and_push(target_res):
+                snap_rel = ""
                 try:
-                  snap_rel = await asyncio.wait_for(_capture_winner_screenshot_async(target_res), timeout=60.0)
+                  snap_rel = await asyncio.wait_for(_capture_winner_screenshot_async(target_res), timeout=150.0)
                   if snap_rel:
                     target_res["screenshot"] = snap_rel
                     _save_reroll_files()
                 except Exception as err_snap:
                   print(f"⚠️ [Screenshot Bg] Lỗi chụp ảnh ngầm cho {target_res.get('account')}: {err_snap}", flush=True)
                 try:
-                  await _push_winner_to_sales_bot_async(target_res)
+                  if snap_rel:
+                    await _push_winner_to_sales_bot_async(target_res)
+                  else:
+                    print(f"⚠️ [{target_res.get('account')}] Chưa có ảnh chụp, giao lại cho auto_sync_watcher chờ ảnh và tự động đẩy sau...", flush=True)
                 except Exception:
                   pass
 
