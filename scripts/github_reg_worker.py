@@ -51,7 +51,7 @@ def register_one_account(page, worker_id, seq):
 
     t0 = time.time()
     try:
-        page.goto(target_url, wait_until="networkidle", timeout=12000)
+        page.goto(target_url, wait_until="domcontentloaded", timeout=9000)
     except Exception as e:
         print(f"[{worker_id}#{seq}] Goto error: {e}")
 
@@ -102,15 +102,14 @@ def register_one_account(page, worker_id, seq):
         print(f"[{worker_id}#{seq}] Submit error: {res.get('error')}")
 
     content = ""
-    for _ in range(8):
+    for _ in range(12):
         try:
-            page.wait_for_load_state("domcontentloaded", timeout=4000)
-            time.sleep(0.5)
             content = page.content()
-            if "loginSuccess" in content or "form" in content:
+            if "loginSuccess" in content:
                 break
+            time.sleep(0.2)
         except Exception:
-            time.sleep(0.4)
+            time.sleep(0.15)
 
     registered_info = None
     if "loginSuccess" in content:
@@ -183,6 +182,7 @@ def main():
             locale="vi-VN",
         )
         page = context.new_page()
+        page.route("**/*.{png,jpg,jpeg,gif,webp,svg,woff,woff2,ttf,otf}", lambda route: route.abort())
 
         for seq in range(1, args.count + 1):
             try:

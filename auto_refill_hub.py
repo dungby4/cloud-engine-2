@@ -15,8 +15,8 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 HUB_STATS_URL = "https://152-69-209-107.sslip.io/api/accounts/stats"
-THRESHOLD = 180
-COUNT_PER_JOB = 40  # 20 workers * 40 = 800 accounts per run
+THRESHOLD = 300
+COUNT_PER_JOB = 80  # 20 workers * 80 = 1,600 accounts per run
 
 def get_queue_stats():
     try:
