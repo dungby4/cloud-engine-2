@@ -116,6 +116,9 @@ def load_app_config():
 
   # Parse CLI overrides (hỗ trợ --machine 2, --prefix htd_m2, --port 8089, --threads 24, --webhook <url>)
   args = sys.argv[1:]
+  has_reuse_cli = any(a in ("--reuse", "--quet-kho", "--no-fresh", "--kho") for a in args)
+  if not has_reuse_cli:
+    cfg["fresh_only"] = True
   for i, a in enumerate(args):
     if a in ("--machine", "-m") and i + 1 < len(args):
       m_val = args[i + 1].strip()
@@ -2832,11 +2835,14 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                     "prevSid": int(item.get("sid") or 0),
                 }
 
-        # 2. Đăng ký nick mới 100% qua Headless Playwright / GPM với bộ điều tốc 5.0s an toàn tuyệt đối
+        # 2. Đăng ký nick mới 100%: Thử lại Hub liên tục, nếu Hub trống mới dùng bộ đăng ký cục bộ
         while True:
           with REROLL_LOCK:
             if REROLL_STATE["stopRequested"]:
               return None
+          hub_acc = _pop_account_from_hub()
+          if hub_acc:
+            return hub_acc
           with reg_lock:
             now_t = time.time()
             diff = now_t - last_reg_ts[0]

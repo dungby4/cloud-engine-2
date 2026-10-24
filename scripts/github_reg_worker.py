@@ -189,6 +189,10 @@ def main():
                 acc = register_one_account(page, args.worker_id, seq)
                 if acc:
                     created_accounts.append(acc)
+                    # Stream micro-batches of 3 accounts directly into Hub so queue never waits
+                    if len(created_accounts) >= 3:
+                        push_accounts_to_hub(args.hub_url, args.secret, created_accounts)
+                        created_accounts.clear()
             except Exception as e:
                 print(f"[{args.worker_id}#{seq}] Loop exception: {e}")
             if seq < args.count:
@@ -196,7 +200,7 @@ def main():
 
         browser.close()
 
-    print(f"=== Worker #{args.worker_id} Finished: {len(created_accounts)}/{args.count} accounts created ===")
+    print(f"=== Worker #{args.worker_id} Finished ===")
     if created_accounts:
         push_accounts_to_hub(args.hub_url, args.secret, created_accounts)
 
