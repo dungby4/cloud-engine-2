@@ -15,6 +15,7 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 HUB_STATS_URL = "https://152-69-209-107.sslip.io/api/accounts/stats"
+FEEDER_REPO = "truongqv12/htd-account-feeder"
 THRESHOLD = 300
 COUNT_PER_JOB = 80  # 20 workers * 80 = 1,600 accounts per run
 
@@ -34,7 +35,7 @@ def get_queue_stats():
 def is_gh_running():
     try:
         res = subprocess.run(
-            ["gh", "run", "list", "--workflow=reg_rotator.yml", "--limit", "1", "--json", "status"],
+            ["gh", "run", "list", "--repo", FEEDER_REPO, "--workflow=reg_rotator.yml", "--limit", "1", "--json", "status"],
             capture_output=True,
             text=True,
             check=True
@@ -49,7 +50,7 @@ def is_gh_running():
 def trigger_gh_burst(count_per_job=80):
     try:
         res = subprocess.run(
-            ["gh", "workflow", "run", "reg_rotator.yml", "-f", f"count_per_job={count_per_job}"],
+            ["gh", "workflow", "run", "reg_rotator.yml", "--repo", FEEDER_REPO, "-f", f"count_per_job={count_per_job}"],
             capture_output=True,
             text=True,
             check=True

@@ -29,6 +29,10 @@ reshoot_*
 *_fixed.png
 .synced_accounts.txt
 
+# Keys and certificates
+*.key
+*.pem
+
 # OS artifacts
 .DS_Store
 Thumbs.db
