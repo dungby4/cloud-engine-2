@@ -51,9 +51,11 @@ def register_one_account(page, worker_id, seq):
 
     t0 = time.time()
     try:
-        page.goto(target_url, wait_until="domcontentloaded", timeout=9000)
+        page.goto(target_url, wait_until="domcontentloaded", timeout=12000)
+        page.wait_for_selector("#username", timeout=10000)
     except Exception as e:
-        print(f"[{worker_id}#{seq}] Goto error: {e}")
+        print(f"[{worker_id}#{seq}] Goto/wait error: {e}")
+        return None
 
     submit_js = f"""
     (() => {{
