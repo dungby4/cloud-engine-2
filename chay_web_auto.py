@@ -4159,10 +4159,17 @@ def main():
 
   print_cmd_reroll_dashboard()
 
+  tgt_sid = str(APP_CONFIG.get("target_server") or "610081")
+  active_srv = srv_info if 'srv_info' in locals() else newest_srv
+  for s in ALL_SERVERS_DATA:
+    if str(s["sid"]) == str(tgt_sid):
+      active_srv = s
+      break
+
   if "--no-auto-reroll" not in sys.argv:
-    print(f"\n🚀 ĐANG TỰ ĐỘNG CHẠY XUYÊN SUỐT {PARALLEL_REROLL_WORKERS} LUỒNG SIÊU TỐC (TIỀN TỐ: '{ACCOUNT_PREFIX}') TẠI {newest_srv['name']}...")
+    print(f"\n🚀 ĐANG TỰ ĐỘNG CHẠY XUYÊN SUỐT {PARALLEL_REROLL_WORKERS} LUỒNG SIÊU TỐC (TIỀN TỐ: '{ACCOUNT_PREFIX}') TẠI {active_srv['name']} ({active_srv['sid']})...")
     print("👉 Khi nổ 2x sẽ hiện bảng lớn, chụp ảnh Thần Tướng & lưu vào DAN_NICK_TRUNG_TUONG.txt rồi TIẾP TỤC CHẠY LUÔN KHÔNG DỪNG:\n", flush=True)
-    start_reroll_background(count=10000, sid_str="latest", stop_on_win=False, prefix=ACCOUNT_PREFIX, min_copies=2)
+    start_reroll_background(count=10000, sid_str=tgt_sid, stop_on_win=False, prefix=ACCOUNT_PREFIX, min_copies=2)
 
   def _cmd_console_listener():
     while True:
@@ -4181,8 +4188,7 @@ def main():
           continue
         next_cnt = int(cmd_txt) if cmd_txt.isdigit() and int(cmd_txt) > 0 else 10000
         latest_now = fetch_latest_server_live()
-        print(f"\n🚀 TIẾP TỤC CHẠY XUYÊN SUỐT {next_cnt} NICK ({PARALLEL_REROLL_WORKERS} LUỒNG TẠI {latest_now['name']} - KHÔNG DỪNG KHI TRÚNG)...\n", flush=True)
-        start_reroll_background(count=next_cnt, sid_str="latest", stop_on_win=False, prefix=ACCOUNT_PREFIX, min_copies=2)
+        start_reroll_background(count=next_cnt, sid_str=tgt_sid, stop_on_win=False, prefix=ACCOUNT_PREFIX, min_copies=2)
       except Exception:
         time.sleep(1)
 
