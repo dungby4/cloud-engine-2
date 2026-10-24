@@ -37,7 +37,26 @@ def main() -> None:
     parser.add_argument("--txt", default="DAN_NICK_TRUNG_TUONG.txt", help="File nick cần theo dõi")
     parser.add_argument("--photos", default="anh_nick_trung", help="Thư mục ảnh")
     parser.add_argument("--poll-interval", type=float, default=3.0, help="Số giây kiểm tra lại file")
+    parser.add_argument("--machine", default=None, help="Tên nguồn máy (vd: Máy 2, VPS 1, VPS 2)")
     args = parser.parse_args()
+
+    machine_tag = args.machine
+    if not machine_tag:
+        try:
+            with open("config_local.json", "r", encoding="utf-8") as f:
+                cfg_local = json.load(f)
+                machine_tag = cfg_local.get("machine_id")
+        except Exception:
+            pass
+    if not machine_tag:
+        import socket
+        h = socket.gethostname().lower()
+        if "vps" in h or "152" in h:
+            machine_tag = "VPS 1"
+        elif "160" in h:
+            machine_tag = "VPS 2"
+        else:
+            machine_tag = "Máy 2"
 
     txt_path = Path(args.txt)
     photos_dir = Path(args.photos)
@@ -169,7 +188,7 @@ def main() -> None:
 
                     # Send payload to Webhook
                     payload = {
-                        "machine_id": "auto_watcher",
+                        "machine_id": machine_tag,
                         "account": acc,
                         "password": pwd,
                         "funtap_id": funtap_id,
@@ -200,7 +219,7 @@ def main() -> None:
                         with urllib.request.urlopen(req, timeout=10) as resp:
                             res_json = json.loads(resp.read().decode("utf-8"))
                             status_code = resp.status
-                            print(f"   ✅ [BƠM THÀNH CÔNG] Bot phản hồi: {res_json.get('status')} (HTTP {status_code})")
+                            print(f"   ✅ [BƠM THÀNH CÔNG MÁY {machine_tag.upper()}] Bot phản hồi: {res_json.get('status')} (HTTP {status_code})")
                     except Exception as err:
                         print(f"   ❌ Lỗi khi gửi Webhook lên Bot: {err}")
                         continue
