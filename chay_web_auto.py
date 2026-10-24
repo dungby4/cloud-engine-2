@@ -2848,14 +2848,6 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
               print(f"⚠ [{completed_cnt:02d}/{count}] GIFTCODE {code_stat} | Chưa xác nhận: {'; '.join(details)}", flush=True)
             if res["isJackpot2x"]:
               jackpot_cnt += 1
-              # Chụp ảnh mục Thần Tướng (Dương Tiễn / Ngộ Không / Na Tra / Lý Tịnh / Đường Tam Tạng đứng đầu Hàng 1)
-              try:
-                snap_rel = await asyncio.wait_for(_capture_winner_screenshot_async(res), timeout=75.0)
-              except Exception as err_snap:
-                print(f"⚠️ [Screenshot Timeout] Quá thời gian chụp ảnh ({err_snap}), lưu nick và tiếp tục cày...", flush=True)
-                snap_rel = ""
-              if snap_rel:
-                res["screenshot"] = snap_rel
               print(
                   f"\n{'='*88}\n"
                   f"🔥🔥 [TRÚNG 2x/3x THẦN TƯỚNG #{jackpot_cnt}] [{completed_cnt:02d}/{count}] ({mode_tag})\n"
@@ -2864,12 +2856,27 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                   f"   🖥️ MÁY CHỦ     : {res['serverName']}   |   CẤP ĐỘ: Lv.{res.get('level', 1)}\n"
                   f"   🎁 GIFTCODE    : Đã xác nhận {code_stat} mã\n"
                   f"   ⭐ TƯỚNG 5★ PHỤ ({len(res['heroes5Star'])} tổng): {other_summary}\n"
-                  f"   📸 ẢNH CHỨNG MINH: {snap_rel or 'Đang lưu...'}\n"
+                  f"   📸 ẢNH CHỨNG MINH: Đang chụp ngầm (không dừng luồng cày)...\n"
                   f"{'='*88}\n",
                   flush=True,
               )
               _save_reroll_files()
-              asyncio.create_task(_push_winner_to_sales_bot_async(res))
+
+              # Chụp ảnh và đẩy bot hoàn toàn chạy ngầm, tuyệt đối không bao giờ làm nghẽn 48 luồng cày
+              async def _async_snap_and_push(target_res):
+                try:
+                  snap_rel = await asyncio.wait_for(_capture_winner_screenshot_async(target_res), timeout=60.0)
+                  if snap_rel:
+                    target_res["screenshot"] = snap_rel
+                    _save_reroll_files()
+                except Exception as err_snap:
+                  print(f"⚠️ [Screenshot Bg] Lỗi chụp ảnh ngầm cho {target_res.get('account')}: {err_snap}", flush=True)
+                try:
+                  await _push_winner_to_sales_bot_async(target_res)
+                except Exception:
+                  pass
+
+              asyncio.create_task(_async_snap_and_push(res))
             else:
               single_info = []
               if res.get("dtCount") == 1:
