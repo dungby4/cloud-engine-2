@@ -2123,10 +2123,18 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         await asyncio.sleep(0.45)
 
         total_codes = len(REROLL_GIFTCODES)
-        await claims.claim_all(
-            REROLL_GIFTCODES, send_code, reconnect_for_codes,
-            lambda: REROLL_STATE["stopRequested"], code_progress,
-        )
+        cdk_sem = globals().get("ACTIVE_CDK_SEMAPHORE")
+        if cdk_sem is not None:
+          async with cdk_sem:
+            await claims.claim_all(
+                REROLL_GIFTCODES, send_code, reconnect_for_codes,
+                lambda: REROLL_STATE["stopRequested"], code_progress,
+            )
+        else:
+          await claims.claim_all(
+              REROLL_GIFTCODES, send_code, reconnect_for_codes,
+              lambda: REROLL_STATE["stopRequested"], code_progress,
+          )
         if claims.needs_reconnect and not REROLL_STATE["stopRequested"]:
           await reconnect_for_codes()
           claims.new_connection()
@@ -2889,6 +2897,11 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
           # Chờ ngắn 2.0s để đón mẻ nick tươi mới nhất từ GitHub Actions rót vào Hub
           time.sleep(2.0)
 
+      globals()["ACTIVE_CDK_SEMAPHORE"] = asyncio.Semaphore(3)
+      auto_latest_mode = str(sid_str or "latest").lower() in ("latest", "auto", "0", "")
+      wedged_sids = {}
+      consec_cdk_starved = [0]
+
       completed_cnt = 0
       jackpot_cnt = 0
       active_cnt = 0
@@ -2904,18 +2917,21 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
             if not REROLL_STATE["running"] or REROLL_STATE["stopRequested"]:
               break
             step_now = REROLL_STATE.get("stepMsg") or ""
-          # Tự động quét Server mới mỗi 30 giây ngay trong lúc đang chạy!
-          if time.time() - last_srv_check_ts[0] >= 30.0:
+          # Tự động quét Server mới mỗi 30 giây ngay trong lúc đang chạy (chỉ khi chạy chế độ latest/auto)!
+          if auto_latest_mode and time.time() - last_srv_check_ts[0] >= 30.0:
             last_srv_check_ts[0] = time.time()
             try:
               latest_cand = await asyncio.to_thread(fetch_latest_server_live)
-              if latest_cand and int(latest_cand.get("sid") or 0) > int(srv_info.get("sid") or 0):
-                srv_info = latest_cand
-                print(
-                    f"\n🆕 [AUTO-MIGRATE] PHÁT HIỆN SERVER MỚI MỞ: {srv_info['name']} ({srv_info['sid']}) "
-                    f"=> Tự động chuyển toàn bộ {PARALLEL_REROLL_WORKERS} luồng sang Server mới ngay lập tức!\n",
-                    flush=True,
-                )
+              if latest_cand:
+                cand_sid = int(latest_cand.get("sid") or 0)
+                if cand_sid > int(srv_info.get("sid") or 0) and wedged_sids.get(cand_sid, 0) <= time.time():
+                  srv_info = latest_cand
+                  consec_cdk_starved[0] = 0
+                  print(
+                      f"\n🆕 [AUTO-MIGRATE] CHUYỂN SANG SERVER MỚI NHẤT: {srv_info['name']} ({srv_info['sid']}) "
+                      f"=> Toàn bộ {PARALLEL_REROLL_WORKERS} luồng cày tại {srv_info['name']}!\n",
+                      flush=True,
+                  )
             except Exception:
               pass
           if time.time() - last_print_ts[0] >= 4.3:
@@ -2978,15 +2994,36 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                     REUSABLE_POOL[reg_info["username"]]["sid"] = cur_sid_int
                 if res:
                   break
-              if res and len(res.get("heroes5Star") or []) >= 4:
+              if res and len(res.get("heroes5Star") or []) >= 1:
                 break
 
             if not res or len(res.get("heroes5Star") or []) == 0:
               continue
 
+            confirmed_cnt = len(res.get("confirmedCodes") or [])
+            if int(srv_info["sid"]) == cur_sid_int:
+              if confirmed_cnt < 8:
+                consec_cdk_starved[0] += 1
+                if auto_latest_mode and consec_cdk_starved[0] >= 2:
+                  wedged_sids[cur_sid_int] = time.time() + 300.0
+                  consec_cdk_starved[0] = 0
+                  for cand_s in ALL_SERVERS_DATA:
+                    c_sid = int(cand_s.get("sid") or 0)
+                    if c_sid < cur_sid_int and wedged_sids.get(c_sid, 0) <= time.time():
+                      srv_info = cand_s
+                      print(
+                          f"\n⚠️ [AUTO-FALLBACK CDK] Server {cur_srv['name']} ({cur_sid_int}) đang nghẽn cổng Giftcode ({confirmed_cnt}/28 mã) "
+                          f"=> Tự động chuyển sang {srv_info['name']} ({srv_info['sid']}) ăn 28/28 code (sẽ tự kiểm tra lại {cur_srv['name']} sau 5 phút)!\n",
+                          flush=True,
+                      )
+                      break
+              else:
+                consec_cdk_starved[0] = 0
+
             completed_cnt += 1
             last_print_ts[0] = time.time()
             acc_u = res["account"]
+            saved_sid = (cur_sid_int - 2) if confirmed_cnt < 8 else cur_sid_int
             with REROLL_LOCK:
               REROLL_STATE["currentIdx"] = completed_cnt
               REROLL_STATE["currentAcc"] = acc_u
@@ -2994,12 +3031,12 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                 # Nick đã trúng 2x -> Xóa vĩnh viễn khỏi kho phôi tái sử dụng!
                 REUSABLE_POOL.pop(acc_u, None)
               else:
-                # Nick chưa trúng 2x -> Lưu/cập nhật vào kho phôi với sid=cur_sid_int để dành cho Server mới tiếp theo!
+                # Nick chưa trúng 2x -> Lưu/cập nhật vào kho phôi với sid=saved_sid để dành cho Server mới tiếp theo!
                 REUSABLE_POOL[acc_u] = {
                     "u": acc_u,
                     "p": res["password"],
                     "id": str(res["funtapId"]),
-                    "sid": cur_sid_int,
+                    "sid": saved_sid,
                 }
               REROLL_STATE["reusableCount"] = len(REUSABLE_POOL)
               REROLL_STATE["accounts"].insert(0, res)
