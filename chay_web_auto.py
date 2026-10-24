@@ -3005,7 +3005,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
               if confirmed_cnt < 8:
                 consec_cdk_starved[0] += 1
                 if auto_latest_mode and consec_cdk_starved[0] >= 2:
-                  wedged_sids[cur_sid_int] = time.time() + 300.0
+                  wedged_sids[cur_sid_int] = time.time() + 900.0
                   consec_cdk_starved[0] = 0
                   for cand_s in ALL_SERVERS_DATA:
                     c_sid = int(cand_s.get("sid") or 0)
@@ -3013,7 +3013,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                       srv_info = cand_s
                       print(
                           f"\n⚠️ [AUTO-FALLBACK CDK] Server {cur_srv['name']} ({cur_sid_int}) đang nghẽn cổng Giftcode ({confirmed_cnt}/28 mã) "
-                          f"=> Tự động chuyển sang {srv_info['name']} ({srv_info['sid']}) ăn 28/28 code (sẽ tự kiểm tra lại {cur_srv['name']} sau 5 phút)!\n",
+                          f"=> Tự động chuyển sang {srv_info['name']} ({srv_info['sid']}) ăn 28/28 code (sẽ tự kiểm tra lại {cur_srv['name']} sau 15 phút)!\n",
                           flush=True,
                       )
                       break
@@ -3023,7 +3023,10 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
             completed_cnt += 1
             last_print_ts[0] = time.time()
             acc_u = res["account"]
-            saved_sid = (cur_sid_int - 2) if confirmed_cnt < 8 else cur_sid_int
+            if confirmed_cnt < 8:
+              saved_sid = int(reg_info.get("prevSid") or (cur_sid_int - 2)) if (reg_info and reg_info.get("reused")) else (cur_sid_int - 2)
+            else:
+              saved_sid = cur_sid_int
             with REROLL_LOCK:
               REROLL_STATE["currentIdx"] = completed_cnt
               REROLL_STATE["currentAcc"] = acc_u
