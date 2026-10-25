@@ -1998,7 +1998,7 @@ def fetch_latest_server_live():
   return ALL_SERVERS_DATA[0]
 
 
-WS_ACTIVE_SEM = asyncio.Semaphore(6)
+WS_ACTIVE_SEM = asyncio.Semaphore(8)
 
 
 async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
@@ -2105,7 +2105,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   await WS_ACTIVE_SEM.acquire()
   try:
     login_pkt = await build_login_packet()
-    async with websockets.connect(ws_url, ssl=ctx, open_timeout=12, ping_interval=None, ping_timeout=None) as ws:
+    async with websockets.connect(ws_url, ssl=ctx, open_timeout=10, close_timeout=0.3, ping_interval=None, ping_timeout=None) as ws:
       async def _reader(connection):
         try:
           async for resp in connection:
@@ -2120,12 +2120,19 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         set_step("Giftcode phản hồi trễ: đang kết nối lại để nhập bù đúng mã...")
         reader_task.cancel()
         await asyncio.gather(reader_task, return_exceptions=True)
-        await ws.close()
+        try:
+          await asyncio.wait_for(ws.close(), timeout=0.4)
+        except Exception:
+          pass
         login_ev.clear()
-        ws = await websockets.connect(ws_url, ssl=ctx, open_timeout=12, ping_interval=None, ping_timeout=None)
+        ws = await websockets.connect(ws_url, ssl=ctx, open_timeout=10, close_timeout=0.3, ping_interval=None, ping_timeout=None)
         reader_task = asyncio.create_task(_reader(ws))
         await ws.send(await build_login_packet())
-        await asyncio.wait_for(login_ev.wait(), timeout=12)
+        try:
+          await asyncio.wait_for(login_ev.wait(), timeout=0.65)
+        except asyncio.TimeoutError:
+          pass
+        await ws.send(_pkt_msg(64, b"\x01"))
 
       async def send_code(code):
         await ws.send(_pkt_msg(143, _pkt_str(code)))
@@ -2181,16 +2188,21 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         await asyncio.sleep(0.08)
 
         total_codes = len(REROLL_GIFTCODES)
+        claims.max_attempts = 1
         await claims.claim_all(
             REROLL_GIFTCODES, send_code, reconnect_for_codes,
             lambda: REROLL_STATE["stopRequested"], code_progress,
         )
-        for _sweep_round in range(4):
+        for _sweep_round in range(3):
           missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
           if not missing_codes or len(confirmed_codes) >= 26 or REROLL_STATE["stopRequested"]:
             break
-          await asyncio.sleep(0.18)
-          claims.max_attempts = 3
+          try:
+            await reconnect_for_codes()
+            claims.new_connection()
+          except Exception:
+            await asyncio.sleep(0.15)
+          claims.max_attempts = 2
           await claims.claim_all(
               missing_codes, send_code, reconnect_for_codes,
               lambda: REROLL_STATE["stopRequested"], code_progress,
@@ -2209,9 +2221,11 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         await ws.send(_pkt_msg(64, b"\x01"))
         await ws.send(_pkt_msg(64, b"\x02"))
         await ws.send(_pkt_msg(61))
-        await asyncio.sleep(0.32)
+        await asyncio.sleep(0.35)
+        await ws.send(_pkt_msg(64, b"\x01"))
+        await ws.send(_pkt_msg(64, b"\x02"))
         await ws.send(_pkt_msg(61))
-        await asyncio.sleep(0.22)
+        await asyncio.sleep(0.25)
 
         # Mở 250 mảnh 5★: 100 mảnh 703 (2 tướng) + 100 mảnh 704 Core SSR (2 tướng) + 50 mảnh 1012 (1 tướng)
         for item_id, qty in [(703, 2), (703, 1), (704, 2), (704, 1), (1012, 1)]:
@@ -2238,8 +2252,10 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
             await asyncio.sleep(0.08)
 
         # VÉT THƯ LẦN CUỐI TRƯỚC KHI QUAY: Đảm bảo 100% vé Thiên Mệnh + Tam Giới từ thư trễ đều đã vào túi
+        await ws.send(_pkt_msg(64, b"\x01"))
+        await ws.send(_pkt_msg(64, b"\x02"))
         await ws.send(_pkt_msg(61))
-        await asyncio.sleep(0.25)
+        await asyncio.sleep(0.28)
 
         # CHẾ ĐỘ XẢ SẠCH 100% VÉ (68 VÉ THIÊN MỆNH + 14 VÉ TAM GIỚI) & GIỮ NGUYÊN 3820 TIÊN NGỌC:
         # 1. Đã mở 250 mảnh 5★ (5 tướng).
@@ -2265,8 +2281,15 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         # Nhận lại thư và quay bù vé ngay lập tức
         if len(heroes_5star) < 12 and not REROLL_STATE["stopRequested"]:
           set_step("Bảo hiểm vé trễ: Đang nhận lại thư & quay bù 68 vé Thiên Mệnh...")
+          await ws.send(_pkt_msg(64, b"\x01"))
+          await ws.send(_pkt_msg(64, b"\x02"))
           await ws.send(_pkt_msg(61))
-          await asyncio.sleep(0.32)
+          await asyncio.sleep(0.35)
+          await ws.send(_pkt_msg(61))
+          await asyncio.sleep(0.20)
+          for item_id, qty in [(703, 2), (703, 1), (704, 2), (704, 1), (1012, 1)]:
+            await ws.send(_pkt_msg(87, struct.pack(">ii", item_id, qty)))
+            await asyncio.sleep(0.06)
           for _ in range(6):
             if REROLL_STATE["stopRequested"]:
               break
@@ -2340,7 +2363,10 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
       finally:
         reader_task.cancel()
         await asyncio.gather(reader_task, return_exceptions=True)
-        await ws.close()
+        try:
+          await asyncio.wait_for(ws.close(), timeout=0.3)
+        except Exception:
+          pass
   except Exception as e:
     set_step(f"Lỗi kết nối: {e}")
   finally:
