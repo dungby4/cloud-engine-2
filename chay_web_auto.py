@@ -2006,7 +2006,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   global CDK_PHASE_SEM, CDK_PHASE_LOOP
   cur_loop = asyncio.get_running_loop()
   if CDK_PHASE_SEM is None or CDK_PHASE_LOOP is not cur_loop:
-    CDK_PHASE_SEM = asyncio.Semaphore(10)
+    CDK_PHASE_SEM = asyncio.Semaphore(56)
     CDK_PHASE_LOOP = cur_loop
   acc_id = reg_info["username"]
   acc_pwd = reg_info["password"]
@@ -2221,13 +2221,18 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
           await asyncio.sleep(0.05)
         await asyncio.sleep(0.10)
 
-        # Nếu chưa mở đủ 5 tướng từ 250 mảnh (+ 1 Tiểu Bạch Long = 6 tướng), mở vét nhanh
-        if len(heroes_5star) < 6:
+        # Nếu chưa mở đủ 5 tướng từ 250 mảnh (+ 1 Tiểu Bạch Long = 6 tướng), mở vét nhanh (hỗ trợ cả trường hợp thư CDK đến trễ vài giây giờ cao điểm)
+        for _wait_mail_try in range(2):
+          if len(heroes_5star) >= 6 or REROLL_STATE["stopRequested"]:
+            break
+          await asyncio.sleep(0.90)
+          await ws.send(_pkt_msg(64, b"\x01"))
+          await ws.send(_pkt_msg(64, b"\x02"))
           await ws.send(_pkt_msg(61))
-          await asyncio.sleep(0.30)
+          await asyncio.sleep(0.35)
           for item_id, qty in [(703, 2), (703, 1), (704, 2), (704, 1), (1012, 1)]:
             await ws.send(_pkt_msg(87, struct.pack(">ii", item_id, qty)))
-            await asyncio.sleep(0.12)
+            await asyncio.sleep(0.08)
 
         # VÉT THƯ LẦN CUỐI TRƯỚC KHI QUAY: Đảm bảo 100% vé Thiên Mệnh + Tam Giới từ thư trễ đều đã vào túi
         await ws.send(_pkt_msg(61))
@@ -3052,14 +3057,10 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
             if not res or len(res.get("heroes5Star") or []) == 0:
               continue
 
-            confirmed_cnt = len(res.get("confirmedCodes") or [])
             completed_cnt += 1
             last_print_ts[0] = time.time()
             acc_u = res["account"]
-            if confirmed_cnt < 10:
-              saved_sid = int(reg_info.get("prevSid") or (cur_sid_int - 2)) if (reg_info and reg_info.get("reused")) else (cur_sid_int - 2)
-            else:
-              saved_sid = cur_sid_int
+            saved_sid = cur_sid_int
             with REROLL_LOCK:
               REROLL_STATE["currentIdx"] = completed_cnt
               REROLL_STATE["currentAcc"] = acc_u
