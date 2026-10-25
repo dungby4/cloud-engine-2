@@ -2182,6 +2182,13 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
             REROLL_GIFTCODES, send_code, reconnect_for_codes,
             lambda: REROLL_STATE["stopRequested"], code_progress,
         )
+        missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
+        if missing_codes and not REROLL_STATE["stopRequested"]:
+          claims.max_attempts = 8
+          await claims.claim_all(
+              missing_codes, send_code, reconnect_for_codes,
+              lambda: REROLL_STATE["stopRequested"], code_progress,
+          )
         if claims.needs_reconnect and not REROLL_STATE["stopRequested"]:
           await reconnect_for_codes()
           claims.new_connection()
