@@ -2006,7 +2006,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   global CDK_PHASE_SEM, CDK_PHASE_LOOP
   cur_loop = asyncio.get_running_loop()
   if CDK_PHASE_SEM is None or CDK_PHASE_LOOP is not cur_loop:
-    CDK_PHASE_SEM = asyncio.Semaphore(5)
+    CDK_PHASE_SEM = asyncio.Semaphore(4)
     CDK_PHASE_LOOP = cur_loop
   acc_id = reg_info["username"]
   acc_pwd = reg_info["password"]

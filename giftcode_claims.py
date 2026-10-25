@@ -9,11 +9,11 @@ import weakref
 from websockets.exceptions import ConnectionClosed
 
 _LOOP_NEXT_CDK_SEND = weakref.WeakKeyDictionary()
-_GLOBAL_MIN_CDK_GAP = 0.095
+_GLOBAL_MIN_CDK_GAP = 0.145
 
 
 class GiftcodeClaims:
-  def __init__(self, min_interval=0.45, timeout=2.20, max_attempts=3, reconnect_on_timeout=False):
+  def __init__(self, min_interval=0.48, timeout=2.40, max_attempts=4, reconnect_on_timeout=False):
     self.min_interval = min_interval
     self.timeout = timeout
     self.max_attempts = max_attempts
@@ -100,7 +100,7 @@ class GiftcodeClaims:
       if code in self.confirmed:
         continue
       for attempt in range(self.max_attempts):
-        if attempt >= 1 and self._consec_timeouts >= 3:
+        if attempt >= 2 and self._consec_timeouts >= 5:
           break
         if stopped():
           return
@@ -124,11 +124,9 @@ class GiftcodeClaims:
           progress(index, len(codes), code, attempt + 1)
           await send(code)
           self._next_send = loop.time() + self.min_interval
-          eff_timeout = 0.65 if self._consec_timeouts >= 3 else self.timeout
-          await asyncio.wait_for(self._event.wait(), eff_timeout)
+          await asyncio.wait_for(self._event.wait(), self.timeout)
           self._next_send = max(self._next_send, loop.time() + min(0.08, self.min_interval))
         except asyncio.TimeoutError:
-          self._consec_timeouts += 1
           self.errors[code] = ("Hết thời gian chờ kết nối lại" if reconnecting and not self._pending
                                else "Hết thời gian chờ xác nhận") + (
               f"; thông báo gần nhất: {self._last_notice}" if self._last_notice else ""
@@ -150,8 +148,8 @@ class GiftcodeClaims:
           backoff = self._retry_after + random.uniform(0.05, 0.20)
         elif self.reconnect_on_timeout:
           backoff = self.min_interval * 2 ** (attempt + 1) + random.uniform(0.05, 0.20)
-        elif self._consec_timeouts >= 2:
-          backoff = 0.05
         else:
-          backoff = 0.45 + attempt * 0.30 + random.uniform(0.05, 0.15)
+          backoff = 0.50 + attempt * 0.35 + random.uniform(0.05, 0.18)
         self._next_send = max(self._next_send, loop.time() + backoff)
+      if code not in self.confirmed and not self._terminal:
+        self._consec_timeouts += 1
