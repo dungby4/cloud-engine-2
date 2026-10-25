@@ -1998,6 +1998,9 @@ def fetch_latest_server_live():
   return ALL_SERVERS_DATA[0]
 
 
+WS_ACTIVE_SEM = asyncio.Semaphore(8)
+
+
 async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   acc_id = reg_info["username"]
   acc_pwd = reg_info["password"]
@@ -2026,8 +2029,6 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
     login_payload.extend(_pkt_str(json_datas))
     login_payload.extend(_pkt_str(""))
     return _pkt_msg(56, login_payload)
-
-  login_pkt = await build_login_packet()
 
   ctx = ssl.create_default_context()
   ctx.check_hostname = False
@@ -2101,7 +2102,9 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
       if h.get("id") == 3010 or "Đường Tam Tạng" in h["name"] or "Đường Tăng" in h["name"] or h.get("name_cn") in ("唐三藏", "唐玄奘", "唐僧"):
         dtt_count += 1
 
+  await WS_ACTIVE_SEM.acquire()
   try:
+    login_pkt = await build_login_packet()
     async with websockets.connect(ws_url, ssl=ctx, open_timeout=12, ping_interval=None, ping_timeout=None) as ws:
       async def _reader(connection):
         try:
@@ -2184,7 +2187,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         )
         missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
         if missing_codes and not REROLL_STATE["stopRequested"]:
-          claims.max_attempts = 8
+          await asyncio.sleep(0.60)
+          claims.max_attempts = 4
           await claims.claim_all(
               missing_codes, send_code, reconnect_for_codes,
               lambda: REROLL_STATE["stopRequested"], code_progress,
@@ -2337,6 +2341,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         await ws.close()
   except Exception as e:
     set_step(f"Lỗi kết nối: {e}")
+  finally:
+    WS_ACTIVE_SEM.release()
 
   # TOÀN BỘ 14 TƯỚNG ĐỎ: NỔ >= 2x BẤT KỲ TƯỚNG ĐỎ NÀO ĐỀU LÀ JACKPOT
   red_counts = {h: heroes_5star.count(h) for h in ALL_RED_HEROES}
