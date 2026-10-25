@@ -2906,7 +2906,10 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
         target_sid_int = int(target_sid)
 
         if not FRESH_ONLY:
-          pool_items = list(REUSABLE_POOL.items())
+          with REROLL_LOCK:
+            if REROLL_STATE["stopRequested"]:
+              return None
+            pool_items = list(REUSABLE_POOL.items())
           if scan_direction == "reverse":
             pool_items.reverse()
           with REROLL_LOCK:
