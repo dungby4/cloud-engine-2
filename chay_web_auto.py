@@ -1999,7 +1999,7 @@ def fetch_latest_server_live():
 
 
 WS_ACTIVE_SEM = asyncio.Semaphore(18)
-CDK_ACTIVE_SEM = asyncio.Semaphore(8)
+CDK_ACTIVE_SEM = asyncio.Semaphore(5)
 
 
 async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
