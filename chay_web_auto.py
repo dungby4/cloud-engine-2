@@ -1998,16 +1998,7 @@ def fetch_latest_server_live():
   return ALL_SERVERS_DATA[0]
 
 
-CDK_PHASE_SEM = None
-CDK_PHASE_LOOP = None
-
-
 async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
-  global CDK_PHASE_SEM, CDK_PHASE_LOOP
-  cur_loop = asyncio.get_running_loop()
-  if CDK_PHASE_SEM is None or CDK_PHASE_LOOP is not cur_loop:
-    CDK_PHASE_SEM = asyncio.Semaphore(4)
-    CDK_PHASE_LOOP = cur_loop
   acc_id = reg_info["username"]
   acc_pwd = reg_info["password"]
   real_acc_id = reg_info["accountId"]
@@ -2187,11 +2178,10 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         await asyncio.sleep(0.08)
 
         total_codes = len(REROLL_GIFTCODES)
-        async with CDK_PHASE_SEM:
-          await claims.claim_all(
-              REROLL_GIFTCODES, send_code, reconnect_for_codes,
-              lambda: REROLL_STATE["stopRequested"], code_progress,
-          )
+        await claims.claim_all(
+            REROLL_GIFTCODES, send_code, reconnect_for_codes,
+            lambda: REROLL_STATE["stopRequested"], code_progress,
+        )
         if claims.needs_reconnect and not REROLL_STATE["stopRequested"]:
           await reconnect_for_codes()
           claims.new_connection()

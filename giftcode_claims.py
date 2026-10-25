@@ -5,15 +5,11 @@ import math
 import random
 import re
 import struct
-import weakref
 from websockets.exceptions import ConnectionClosed
-
-_LOOP_NEXT_CDK_SEND = weakref.WeakKeyDictionary()
-_GLOBAL_MIN_CDK_GAP = 0.145
 
 
 class GiftcodeClaims:
-  def __init__(self, min_interval=0.48, timeout=2.40, max_attempts=4, reconnect_on_timeout=False):
+  def __init__(self, min_interval=0.40, timeout=1.60, max_attempts=3, reconnect_on_timeout=False):
     self.min_interval = min_interval
     self.timeout = timeout
     self.max_attempts = max_attempts
@@ -100,15 +96,9 @@ class GiftcodeClaims:
       if code in self.confirmed:
         continue
       for attempt in range(self.max_attempts):
-        if attempt >= 2 and self._consec_timeouts >= 5:
-          break
         if stopped():
           return
-        now = loop.time()
-        global_next = _LOOP_NEXT_CDK_SEND.get(loop, 0.0)
-        slot_ts = max(now, self._next_send, global_next)
-        _LOOP_NEXT_CDK_SEND[loop] = slot_ts + _GLOBAL_MIN_CDK_GAP
-        if not await self._pause(max(0.0, slot_ts - now), stopped):
+        if not await self._pause(max(0.0, self._next_send - loop.time()), stopped):
           return
         self._retry_after = 0.0
         self._terminal = False
@@ -141,15 +131,11 @@ class GiftcodeClaims:
         if self._abort:
           return
         if code in self.confirmed or self._terminal:
-          if code in self.confirmed:
-            self._consec_timeouts = 0
           break
         if self._retry_after > 0:
           backoff = self._retry_after + random.uniform(0.05, 0.20)
         elif self.reconnect_on_timeout:
           backoff = self.min_interval * 2 ** (attempt + 1) + random.uniform(0.05, 0.20)
         else:
-          backoff = 0.50 + attempt * 0.35 + random.uniform(0.05, 0.18)
+          backoff = 0.15
         self._next_send = max(self._next_send, loop.time() + backoff)
-      if code not in self.confirmed and not self._terminal:
-        self._consec_timeouts += 1
