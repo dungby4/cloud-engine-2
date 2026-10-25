@@ -2845,7 +2845,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
       except Exception:
         pass
     loop.set_exception_handler(_silent_asyncio_exc_handler)
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=32)
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=max(64, PARALLEL_REROLL_WORKERS * 3))
     loop.set_default_executor(executor)
 
     async def _run_pool():
