@@ -5,11 +5,15 @@ import math
 import random
 import re
 import struct
+import weakref
 from websockets.exceptions import ConnectionClosed
+
+_LOOP_NEXT_CDK_SEND = weakref.WeakKeyDictionary()
+_GLOBAL_MIN_CDK_GAP = 0.038  # Smoothly pace CDK packets across all threads on a node (~26 req/s/node)
 
 
 class GiftcodeClaims:
-  def __init__(self, min_interval=0.42, timeout=4.20, max_attempts=4, reconnect_on_timeout=False):
+  def __init__(self, min_interval=0.42, timeout=3.80, max_attempts=4, reconnect_on_timeout=False):
     self.min_interval = min_interval
     self.timeout = timeout
     self.max_attempts = max_attempts
@@ -98,7 +102,11 @@ class GiftcodeClaims:
       for attempt in range(self.max_attempts):
         if stopped():
           return
-        if not await self._pause(max(0.0, self._next_send - loop.time()), stopped):
+        now = loop.time()
+        global_next = _LOOP_NEXT_CDK_SEND.get(loop, 0.0)
+        slot_ts = max(now, self._next_send, global_next)
+        _LOOP_NEXT_CDK_SEND[loop] = slot_ts + _GLOBAL_MIN_CDK_GAP
+        if not await self._pause(max(0.0, slot_ts - now), stopped):
           return
         self._retry_after = 0.0
         self._terminal = False
@@ -117,6 +125,9 @@ class GiftcodeClaims:
           await asyncio.wait_for(self._event.wait(), self.timeout)
           self._next_send = max(self._next_send, loop.time() + min(0.08, self.min_interval))
         except asyncio.TimeoutError:
+          self._consec_timeouts += 1
+          # Push global pacer forward slightly on timeout so server CDK queue can drain
+          _LOOP_NEXT_CDK_SEND[loop] = max(_LOOP_NEXT_CDK_SEND.get(loop, 0.0), loop.time() + 0.18)
           self.errors[code] = ("Hết thời gian chờ kết nối lại" if reconnecting and not self._pending
                                else "Hết thời gian chờ xác nhận") + (
               f"; thông báo gần nhất: {self._last_notice}" if self._last_notice else ""

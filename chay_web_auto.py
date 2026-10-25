@@ -2006,7 +2006,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   global CDK_PHASE_SEM, CDK_PHASE_LOOP
   cur_loop = asyncio.get_running_loop()
   if CDK_PHASE_SEM is None or CDK_PHASE_LOOP is not cur_loop:
-    CDK_PHASE_SEM = asyncio.Semaphore(26)
+    CDK_PHASE_SEM = asyncio.Semaphore(16)
     CDK_PHASE_LOOP = cur_loop
   acc_id = reg_info["username"]
   acc_pwd = reg_info["password"]
@@ -2153,7 +2153,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         login_ev.clear()
         await ws.send(login_pkt)
         try:
-          await asyncio.wait_for(login_ev.wait(), timeout=0.22)
+          await asyncio.wait_for(login_ev.wait(), timeout=0.35)
         except asyncio.TimeoutError:
           pass
 
@@ -2162,13 +2162,13 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
           clean_role_name = re.sub(r"[^a-zA-Z0-9]", "", acc_id)[:14] or acc_id[:14]
           await ws.send(_pkt_msg(122, _pkt_str(clean_role_name) + b"\x00"))
           try:
-            await asyncio.wait_for(login_ev.wait(), timeout=0.18)
+            await asyncio.wait_for(login_ev.wait(), timeout=0.50)
           except asyncio.TimeoutError:
             pass
           if not seen_bag_list:
             await ws.send(_pkt_msg(122, _pkt_str(f"{clean_role_name[:10]}{random.randint(10, 99)}") + b"\x00"))
             try:
-              await asyncio.wait_for(login_ev.wait(), timeout=0.18)
+              await asyncio.wait_for(login_ev.wait(), timeout=0.50)
             except asyncio.TimeoutError:
               pass
         if guide_state["gid"]:
