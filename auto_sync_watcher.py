@@ -131,18 +131,24 @@ def main() -> None:
                     png_cand = (photos_dir / photo_name).with_suffix(".png")
                     photo_candidate = jpg_cand if jpg_cand.exists() else png_cand
 
-                    if photo_name == "-" or not photo_candidate.exists():
+                    def _is_valid_photo(p):
+                        try:
+                            return p.exists() and p.is_file() and p.stat().st_size >= 15360
+                        except Exception:
+                            return False
+
+                    if photo_name == "-" or not _is_valid_photo(photo_candidate):
                         # Tool auto may take 20-40 seconds to auto-run tutorial to Lv.5+ and capture screenshot
                         print(f"   ⏳ Đang chờ tool chạy tân thủ Lv.5+ & lưu xong ảnh chụp cho {acc} (tối đa 45s)...")
                         for _ in range(45):
                             time.sleep(1.0)
-                            matches = list(photos_dir.glob(f"*{acc}*.jpg")) + list(photos_dir.glob(f"*{acc}*.png"))
+                            matches = [m for m in (list(photos_dir.glob(f"*{acc}*.jpg")) + list(photos_dir.glob(f"*{acc}*.png"))) if _is_valid_photo(m)]
                             if matches:
                                 photo_candidate = matches[0]
                                 photo_name = photo_candidate.name
                                 break
 
-                    if not (photo_candidate.exists() and photo_candidate.is_file()):
+                    if not _is_valid_photo(photo_candidate):
                         try:
                             import asyncio
                             import re as _re
@@ -155,15 +161,15 @@ def main() -> None:
                                 "funtapId": funtap_id,
                                 "serverId": sid_int,
                             }))
-                            matches = list(photos_dir.glob(f"*{acc}*.jpg")) + list(photos_dir.glob(f"*{acc}*.png"))
+                            matches = [m for m in (list(photos_dir.glob(f"*{acc}*.jpg")) + list(photos_dir.glob(f"*{acc}*.png"))) if _is_valid_photo(m)]
                             if matches:
                                 photo_candidate = matches[0]
                                 photo_name = photo_candidate.name
                         except Exception as e_fb:
                             print(f"   ⚠️ Chụp bù ảnh cho {acc} lỗi: {e_fb}", flush=True)
 
-                    if not (photo_candidate.exists() and photo_candidate.is_file()):
-                        print(f"   ⏳ Chưa có ảnh chụp cho {acc}, tạm hoãn để chờ tool lưu xong ảnh rồi mới bơm sang Bot...", flush=True)
+                    if not _is_valid_photo(photo_candidate):
+                        print(f"   ⏳ Chưa có ảnh chụp hợp lệ (>=15KB) cho {acc}, tạm hoãn để chờ tool lưu xong ảnh rồi mới bơm sang Bot...", flush=True)
                         continue
 
                     try:

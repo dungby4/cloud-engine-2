@@ -2433,19 +2433,20 @@ async def _capture_winner_screenshot_async(res):
     try:
       os.makedirs(os.path.dirname(out_path), exist_ok=True)
       async with async_playwright() as p:
+        browser_args = [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--mute-audio",
+            "--enable-webgl",
+            "--ignore-gpu-blocklist",
+            "--disable-gpu-vsync",
+        ]
+        if sys.platform.startswith("linux"):
+          browser_args.extend(["--use-gl=angle", "--use-angle=swiftshader"])
         launch_kwargs = {
             "headless": True,
-            "args": [
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--mute-audio",
-                "--enable-webgl",
-                "--ignore-gpu-blocklist",
-                "--use-gl=angle",
-                "--use-angle=swiftshader",
-                "--disable-gpu-vsync",
-            ],
+            "args": browser_args,
         }
         if exe_path:
           launch_kwargs["executable_path"] = exe_path
