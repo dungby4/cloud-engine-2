@@ -9,11 +9,11 @@ import weakref
 from websockets.exceptions import ConnectionClosed
 
 _LOOP_NEXT_CDK_SEND = weakref.WeakKeyDictionary()
-_GLOBAL_MIN_CDK_GAP = 0.022
+_GLOBAL_MIN_CDK_GAP = 0.095
 
 
 class GiftcodeClaims:
-  def __init__(self, min_interval=0.38, timeout=1.50, max_attempts=3, reconnect_on_timeout=False):
+  def __init__(self, min_interval=0.45, timeout=2.20, max_attempts=3, reconnect_on_timeout=False):
     self.min_interval = min_interval
     self.timeout = timeout
     self.max_attempts = max_attempts
@@ -100,7 +100,7 @@ class GiftcodeClaims:
       if code in self.confirmed:
         continue
       for attempt in range(self.max_attempts):
-        if attempt >= 1 and self._consec_timeouts >= 2:
+        if attempt >= 1 and self._consec_timeouts >= 3:
           break
         if stopped():
           return
@@ -124,7 +124,7 @@ class GiftcodeClaims:
           progress(index, len(codes), code, attempt + 1)
           await send(code)
           self._next_send = loop.time() + self.min_interval
-          eff_timeout = 0.42 if self._consec_timeouts >= 2 else self.timeout
+          eff_timeout = 0.65 if self._consec_timeouts >= 3 else self.timeout
           await asyncio.wait_for(self._event.wait(), eff_timeout)
           self._next_send = max(self._next_send, loop.time() + min(0.08, self.min_interval))
         except asyncio.TimeoutError:
