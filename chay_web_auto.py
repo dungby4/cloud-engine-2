@@ -1998,7 +1998,7 @@ def fetch_latest_server_live():
   return ALL_SERVERS_DATA[0]
 
 
-WS_ACTIVE_SEM = asyncio.Semaphore(8)
+WS_ACTIVE_SEM = asyncio.Semaphore(16)
 
 
 async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
@@ -2185,10 +2185,12 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
             REROLL_GIFTCODES, send_code, reconnect_for_codes,
             lambda: REROLL_STATE["stopRequested"], code_progress,
         )
-        missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
-        if missing_codes and not REROLL_STATE["stopRequested"]:
-          await asyncio.sleep(0.60)
-          claims.max_attempts = 4
+        for _sweep_round in range(4):
+          missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
+          if not missing_codes or len(confirmed_codes) >= 26 or REROLL_STATE["stopRequested"]:
+            break
+          await asyncio.sleep(0.25)
+          claims.max_attempts = 5
           await claims.claim_all(
               missing_codes, send_code, reconnect_for_codes,
               lambda: REROLL_STATE["stopRequested"], code_progress,
