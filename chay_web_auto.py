@@ -2187,51 +2187,41 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
           claims.new_connection()
 
         # Give the final giftcode mail time to arrive in mailbox
-        await asyncio.sleep(0.55)
+        await asyncio.sleep(0.85)
 
         codes_stat = f"{len(confirmed_codes)}/{total_codes}"
         set_step(f"Đã xác nhận {codes_stat} Code ➜ Nhận thư & Mở 250 mảnh 5★...")
 
         set_step("Đang nhận Thư phúc lợi & Mở 250 Mảnh 5★ (5 tướng)...")
-        mail_get_ev.clear()
         await ws.send(_pkt_msg(64, b"\x01"))
         await ws.send(_pkt_msg(64, b"\x02"))
         await ws.send(_pkt_msg(61))
-        try:
-          await asyncio.wait_for(mail_get_ev.wait(), timeout=0.32)
-        except asyncio.TimeoutError:
-          pass
-        await asyncio.sleep(0.10)
+        await asyncio.sleep(0.32)
         await ws.send(_pkt_msg(61))
-        await asyncio.sleep(0.12)
+        await asyncio.sleep(0.22)
 
         # Mở 250 mảnh 5★: 100 mảnh 703 (2 tướng) + 100 mảnh 704 Core SSR (2 tướng) + 50 mảnh 1012 (1 tướng)
-        for item_id, qty in [(703, 2), (704, 2), (1012, 1)]:
+        for item_id, qty in [(703, 2), (703, 1), (704, 2), (704, 1), (1012, 1)]:
           item_use_ev.clear()
           await ws.send(_pkt_msg(87, struct.pack(">ii", item_id, qty)))
           try:
-            await asyncio.wait_for(item_use_ev.wait(), timeout=0.16)
+            await asyncio.wait_for(item_use_ev.wait(), timeout=0.14)
           except asyncio.TimeoutError:
             pass
-          await asyncio.sleep(0.04)
-        await asyncio.sleep(0.08)
+          await asyncio.sleep(0.05)
+        await asyncio.sleep(0.10)
 
-        # Nếu chưa mở đủ 5 tướng từ 250 mảnh (do server trễ), mở vét nhanh
-        if len(heroes_5star) < 5:
+        # Nếu chưa mở đủ 5 tướng từ 250 mảnh (+ 1 Tiểu Bạch Long = 6 tướng), mở vét nhanh
+        if len(heroes_5star) < 6:
           await ws.send(_pkt_msg(61))
-          await asyncio.sleep(0.28)
+          await asyncio.sleep(0.30)
           for item_id, qty in [(703, 2), (703, 1), (704, 2), (704, 1), (1012, 1)]:
             await ws.send(_pkt_msg(87, struct.pack(">ii", item_id, qty)))
             await asyncio.sleep(0.12)
 
         # VÉT THƯ LẦN CUỐI TRƯỚC KHI QUAY: Đảm bảo 100% vé Thiên Mệnh + Tam Giới từ thư trễ đều đã vào túi
-        mail_get_ev.clear()
         await ws.send(_pkt_msg(61))
-        try:
-          await asyncio.wait_for(mail_get_ev.wait(), timeout=0.22)
-        except asyncio.TimeoutError:
-          pass
-        await asyncio.sleep(0.08)
+        await asyncio.sleep(0.25)
 
         # CHẾ ĐỘ XẢ SẠCH 100% VÉ (68 VÉ THIÊN MỆNH + 14 VÉ TAM GIỚI) & GIỮ NGUYÊN 3820 TIÊN NGỌC:
         # 1. Đã mở 250 mảnh 5★ (5 tướng).
@@ -2253,9 +2243,9 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
           set_step(f"Đang xả nốt 7 vé Thiên Mệnh lẻ ({s_idx}/7) chạm mốc 68 vé...")
           await do_draw(1, 1, 1)
 
-        # LƯỚI BẢO HIỂM AN TOÀN: Nếu tổng tướng 5★ < 9 (chứng tỏ server trễ thư vé khiến đợt quay đầu hụt vé)
+        # LƯỚI BẢO HIỂM AN TOÀN: Nếu tổng tướng 5★ < 12 (chứng tỏ server trễ thư vé khiến đợt quay đầu hụt vé)
         # Nhận lại thư và quay bù vé ngay lập tức
-        if len(heroes_5star) < 9 and not REROLL_STATE["stopRequested"]:
+        if len(heroes_5star) < 12 and not REROLL_STATE["stopRequested"]:
           set_step("Bảo hiểm vé trễ: Đang nhận lại thư & quay bù 68 vé Thiên Mệnh...")
           await ws.send(_pkt_msg(61))
           await asyncio.sleep(0.32)
