@@ -2897,10 +2897,20 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
           # Chờ ngắn 2.0s để đón mẻ nick tươi mới nhất từ GitHub Actions rót vào Hub
           time.sleep(2.0)
 
-      globals()["ACTIVE_CDK_SEMAPHORE"] = asyncio.Semaphore(2 if FRESH_ONLY else 1)
+      globals()["ACTIVE_CDK_SEMAPHORE"] = asyncio.Semaphore(1)
       auto_latest_mode = str(sid_str or "latest").lower() in ("latest", "auto", "0", "")
       wedged_sids = {}
+      probe_cand_srv = [None]
       consec_cdk_starved = [0]
+      if auto_latest_mode and len(ALL_SERVERS_DATA) >= 2 and int(srv_info.get("sid") or 0) == int(ALL_SERVERS_DATA[0].get("sid") or 0):
+        newest_sid_int = int(srv_info["sid"])
+        if FRESH_ONLY:
+          probe_cand_srv[0] = srv_info
+          wedged_sids[newest_sid_int] = time.time() + 180.0
+          srv_info = ALL_SERVERS_DATA[1]
+        else:
+          wedged_sids[newest_sid_int] = time.time() + random.uniform(90.0, 210.0)
+          srv_info = ALL_SERVERS_DATA[1]
 
       completed_cnt = 0
       jackpot_cnt = 0
@@ -2924,14 +2934,18 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
               latest_cand = await asyncio.to_thread(fetch_latest_server_live)
               if latest_cand:
                 cand_sid = int(latest_cand.get("sid") or 0)
-                if cand_sid > int(srv_info.get("sid") or 0) and wedged_sids.get(cand_sid, 0) <= time.time():
-                  srv_info = latest_cand
-                  consec_cdk_starved[0] = 0
-                  print(
-                      f"\n🆕 [AUTO-MIGRATE] CHUYỂN SANG SERVER MỚI NHẤT: {srv_info['name']} ({srv_info['sid']}) "
-                      f"=> Toàn bộ {PARALLEL_REROLL_WORKERS} luồng cày tại {srv_info['name']}!\n",
-                      flush=True,
-                  )
+                if cand_sid > int(srv_info.get("sid") or 0):
+                  if cand_sid not in wedged_sids:
+                    srv_info = latest_cand
+                    consec_cdk_starved[0] = 0
+                    print(
+                        f"\n🆕 [AUTO-MIGRATE] CHUYỂN SANG SERVER MỚI NHẤT: {srv_info['name']} ({srv_info['sid']}) "
+                        f"=> Toàn bộ {PARALLEL_REROLL_WORKERS} luồng cày tại {srv_info['name']}!\n",
+                        flush=True,
+                    )
+                  elif wedged_sids.get(cand_sid, 0) <= time.time() and probe_cand_srv[0] is None:
+                    wedged_sids[cand_sid] = time.time() + (180.0 if FRESH_ONLY else random.uniform(300.0, 420.0))
+                    probe_cand_srv[0] = latest_cand
             except Exception:
               pass
           if time.time() - last_print_ts[0] >= 4.3:
@@ -2970,7 +2984,13 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
           try:
             res = None
             reg_info = None
-            cur_srv = srv_info
+            is_canary_probe = False
+            if probe_cand_srv[0] is not None:
+              cur_srv = probe_cand_srv[0]
+              probe_cand_srv[0] = None
+              is_canary_probe = True
+            else:
+              cur_srv = srv_info
             cur_sid_int = int(cur_srv["sid"])
             for _try_roll in range(2):
               with REROLL_LOCK:
@@ -3001,11 +3021,24 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
               continue
 
             confirmed_cnt = len(res.get("confirmedCodes") or [])
-            if int(srv_info["sid"]) == cur_sid_int:
-              if confirmed_cnt < 24:
+            if is_canary_probe:
+              if confirmed_cnt >= 20:
+                wedged_sids.pop(cur_sid_int, None)
+                srv_info = cur_srv
+                consec_cdk_starved[0] = 0
+                print(
+                    f"\n🆕 [CANARY OK] Server {cur_srv['name']} ({cur_sid_int}) đã thông Giftcode ({confirmed_cnt}/28 mã) "
+                    f"=> Chuyển toàn bộ luồng về {cur_srv['name']}!\n",
+                    flush=True,
+                )
+              else:
+                wedged_sids[cur_sid_int] = time.time() + (180.0 if FRESH_ONLY else random.uniform(300.0, 420.0))
+            elif int(srv_info["sid"]) == cur_sid_int:
+              if confirmed_cnt < 20:
                 consec_cdk_starved[0] += 1
                 if auto_latest_mode and consec_cdk_starved[0] >= 3:
-                  wedged_sids[cur_sid_int] = time.time() + 900.0
+                  wait_sec = 180.0 if FRESH_ONLY else random.uniform(300.0, 420.0)
+                  wedged_sids[cur_sid_int] = time.time() + wait_sec
                   consec_cdk_starved[0] = 0
                   for cand_s in ALL_SERVERS_DATA:
                     c_sid = int(cand_s.get("sid") or 0)
@@ -3013,7 +3046,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                       srv_info = cand_s
                       print(
                           f"\n⚠️ [AUTO-FALLBACK CDK] Server {cur_srv['name']} ({cur_sid_int}) đang hụt Giftcode ({confirmed_cnt}/28 mã) "
-                          f"=> Tự động chuyển sang {srv_info['name']} ({srv_info['sid']}) ăn 28/28 code (sẽ tự kiểm tra lại {cur_srv['name']} sau 15 phút)!\n",
+                          f"=> Tạm chuyển sang {srv_info['name']} ({srv_info['sid']}) ăn 28/28 code (sẽ dò lại {cur_srv['name']} bằng 1 luồng đơn sau {int(wait_sec//60)} phút)!\n",
                           flush=True,
                       )
                       break
