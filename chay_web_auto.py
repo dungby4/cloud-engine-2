@@ -316,8 +316,16 @@ AI_STATE = {
 }
 
 
+_AUTHKEY_CACHE = {"ts": "", "ak": "", "exp": 0.0}
+_AUTHKEY_LOCK = threading.Lock()
+
+
 def fetch_fresh_authkey(account_id="230519465", token="r"):
-  """Fetches fresh GLOBAL_TIMESTAMP and GLOBAL_AUTHKEY from Funtap igame.php."""
+  """Fetches fresh GLOBAL_TIMESTAMP and GLOBAL_AUTHKEY from Funtap igame.php (cached for 45s across workers)."""
+  now = time.time()
+  with _AUTHKEY_LOCK:
+    if _AUTHKEY_CACHE["ts"] and _AUTHKEY_CACHE["ak"] and now < _AUTHKEY_CACHE["exp"]:
+      return {"timestamp": _AUTHKEY_CACHE["ts"], "authKey": _AUTHKEY_CACHE["ak"]}
   try:
     q_acc = urllib.parse.quote(str(account_id or "230519465"))
     q_tok = urllib.parse.quote(str(token or "r"))
@@ -328,10 +336,15 @@ def fetch_fresh_authkey(account_id="230519465", token="r"):
     m_ts = re.search(r'GLOBAL_TIMESTAMP\s*=\s*"([^"]+)"', txt)
     m_ak = re.search(r'GLOBAL_AUTHKEY\s*=\s*"([^"]+)"', txt)
     if m_ts and m_ak:
+      ts_val, ak_val = m_ts.group(1), m_ak.group(1)
+      with _AUTHKEY_LOCK:
+        _AUTHKEY_CACHE["ts"] = ts_val
+        _AUTHKEY_CACHE["ak"] = ak_val
+        _AUTHKEY_CACHE["exp"] = time.time() + 45.0
       with STATE_LOCK:
-        AI_STATE["timestamp"] = m_ts.group(1)
-        AI_STATE["authKey"] = m_ak.group(1)
-      return {"timestamp": m_ts.group(1), "authKey": m_ak.group(1)}
+        AI_STATE["timestamp"] = ts_val
+        AI_STATE["authKey"] = ak_val
+      return {"timestamp": ts_val, "authKey": ak_val}
   except Exception:
     pass
   with STATE_LOCK:
@@ -1696,7 +1709,7 @@ def _save_reroll_files(force=False):
   import csv
   from collections import Counter
   now_ts = time.time()
-  if not force and (now_ts - LAST_DISK_SAVE_TS[0] < 3.5):
+  if not force and (now_ts - LAST_DISK_SAVE_TS[0] < 12.0):
     return
   LAST_DISK_SAVE_TS[0] = now_ts
 
@@ -2030,6 +2043,10 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   guide_state = {"gid": 0, "code": 0, "done": False}
   guide_ev = asyncio.Event()
   login_ev = asyncio.Event()
+  mail_query_ev = asyncio.Event()
+  mail_get_ev = asyncio.Event()
+  item_use_ev = asyncio.Event()
+  draw_ev = asyncio.Event()
   claims = GiftcodeClaims()
   confirmed_codes = claims.confirmed
 
@@ -2040,6 +2057,18 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
     _, msg_id = struct.unpack(">HH", resp[:4])
     if msg_id in (144, 10):
       claims.record_packet(resp)
+      return
+    if msg_id == 68:
+      mail_get_ev.set()
+      return
+    if msg_id == 69:
+      mail_query_ev.set()
+      return
+    if msg_id == 93:
+      item_use_ev.set()
+      return
+    if msg_id == 214:
+      draw_ev.set()
       return
     if msg_id == 599:
       if len(resp) >= 5 and resp[4] == 0:
@@ -2100,27 +2129,53 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
 
       def code_progress(index, total, code, attempt):
         set_step(f"Đang nhập {total} Giftcode ({index}/{total}): {code}, lần {attempt}...")
+
+      async def do_draw(camp, draw_type, flag=1):
+        draw_ev.clear()
+        await ws.send(_pkt_msg(213, struct.pack(">bbb", camp, draw_type, flag)))
+        try:
+          await asyncio.wait_for(draw_ev.wait(), timeout=0.38)
+        except asyncio.TimeoutError:
+          pass
+        await asyncio.sleep(0.05)
+
       try:
         set_step("Đang tạo nhân vật & Skip tân thủ...")
+        login_ev.clear()
         await ws.send(login_pkt)
-        await asyncio.sleep(0.26)
+        try:
+          await asyncio.wait_for(login_ev.wait(), timeout=0.22)
+        except asyncio.TimeoutError:
+          pass
 
         # Đặt tên nhân vật theo đúng username (bỏ dấu '_' thành htdvipa001 để không bao giờ trùng & nhận 100% ngay lập tức)
-        clean_role_name = re.sub(r"[^a-zA-Z0-9]", "", acc_id)[:14] or acc_id[:14]
-        await ws.send(_pkt_msg(122, _pkt_str(clean_role_name) + b"\x00"))
-        await asyncio.sleep(0.18)
         if not seen_bag_list:
-          await ws.send(_pkt_msg(122, _pkt_str(f"{clean_role_name[:10]}{random.randint(10, 99)}") + b"\x00"))
-          await asyncio.sleep(0.18)
+          clean_role_name = re.sub(r"[^a-zA-Z0-9]", "", acc_id)[:14] or acc_id[:14]
+          await ws.send(_pkt_msg(122, _pkt_str(clean_role_name) + b"\x00"))
+          try:
+            await asyncio.wait_for(login_ev.wait(), timeout=0.18)
+          except asyncio.TimeoutError:
+            pass
+          if not seen_bag_list:
+            await ws.send(_pkt_msg(122, _pkt_str(f"{clean_role_name[:10]}{random.randint(10, 99)}") + b"\x00"))
+            try:
+              await asyncio.wait_for(login_ev.wait(), timeout=0.18)
+            except asyncio.TimeoutError:
+              pass
         if guide_state["gid"]:
           await ws.send(_pkt_msg(91, struct.pack(">i", guide_state["gid"])))
           await ws.send(_pkt_msg(598, struct.pack(">i", guide_state["gid"])))
         else:
           await ws.send(_pkt_msg(91, struct.pack(">i", 1)))
           await ws.send(_pkt_msg(598, struct.pack(">i", 1)))
-        # Khởi tạo MailManager trên server mới (như S83) trước khi bắn Giftcode để tránh hụt mã đầu tiên
+        # Khởi tạo MailManager trên server mới trước khi bắn Giftcode để tránh hụt mã đầu tiên
+        mail_query_ev.clear()
         await ws.send(_pkt_msg(64, b"\x01"))
-        await asyncio.sleep(0.45)
+        try:
+          await asyncio.wait_for(mail_query_ev.wait(), timeout=0.35)
+        except asyncio.TimeoutError:
+          pass
+        await asyncio.sleep(0.08)
 
         total_codes = len(REROLL_GIFTCODES)
         await claims.claim_all(
@@ -2131,77 +2186,87 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
           await reconnect_for_codes()
           claims.new_connection()
 
-        # Give giftcode mail time to arrive even when every ACK was fast.
-        await asyncio.sleep(1.20)
+        # Give the final giftcode mail time to arrive in mailbox
+        await asyncio.sleep(0.55)
 
         codes_stat = f"{len(confirmed_codes)}/{total_codes}"
         set_step(f"Đã xác nhận {codes_stat} Code ➜ Nhận thư & Mở 250 mảnh 5★...")
 
         set_step("Đang nhận Thư phúc lợi & Mở 250 Mảnh 5★ (5 tướng)...")
+        mail_get_ev.clear()
         await ws.send(_pkt_msg(64, b"\x01"))
         await ws.send(_pkt_msg(64, b"\x02"))
         await ws.send(_pkt_msg(61))
-        await asyncio.sleep(0.40)
+        try:
+          await asyncio.wait_for(mail_get_ev.wait(), timeout=0.32)
+        except asyncio.TimeoutError:
+          pass
+        await asyncio.sleep(0.10)
         await ws.send(_pkt_msg(61))
-        await asyncio.sleep(0.30)
+        await asyncio.sleep(0.12)
 
         # Mở 250 mảnh 5★: 100 mảnh 703 (2 tướng) + 100 mảnh 704 Core SSR (2 tướng) + 50 mảnh 1012 (1 tướng)
-        for item_id, qty in [(703, 2), (703, 1), (704, 2), (704, 1), (1012, 1)]:
+        for item_id, qty in [(703, 2), (704, 2), (1012, 1)]:
+          item_use_ev.clear()
           await ws.send(_pkt_msg(87, struct.pack(">ii", item_id, qty)))
-          await asyncio.sleep(0.18)
-        await asyncio.sleep(0.20)
+          try:
+            await asyncio.wait_for(item_use_ev.wait(), timeout=0.16)
+          except asyncio.TimeoutError:
+            pass
+          await asyncio.sleep(0.04)
+        await asyncio.sleep(0.08)
 
         # Nếu chưa mở đủ 5 tướng từ 250 mảnh (do server trễ), mở vét nhanh
         if len(heroes_5star) < 5:
           await ws.send(_pkt_msg(61))
-          await asyncio.sleep(0.35)
-          for item_id, qty in [(703, 1), (704, 2), (704, 1), (1012, 1)]:
+          await asyncio.sleep(0.28)
+          for item_id, qty in [(703, 2), (703, 1), (704, 2), (704, 1), (1012, 1)]:
             await ws.send(_pkt_msg(87, struct.pack(">ii", item_id, qty)))
-            await asyncio.sleep(0.18)
+            await asyncio.sleep(0.12)
 
         # VÉT THƯ LẦN CUỐI TRƯỚC KHI QUAY: Đảm bảo 100% vé Thiên Mệnh + Tam Giới từ thư trễ đều đã vào túi
+        mail_get_ev.clear()
         await ws.send(_pkt_msg(61))
-        await asyncio.sleep(0.35)
+        try:
+          await asyncio.wait_for(mail_get_ev.wait(), timeout=0.22)
+        except asyncio.TimeoutError:
+          pass
+        await asyncio.sleep(0.08)
 
         # CHẾ ĐỘ XẢ SẠCH 100% VÉ (68 VÉ THIÊN MỆNH + 14 VÉ TAM GIỚI) & GIỮ NGUYÊN 3820 TIÊN NGỌC:
         # 1. Đã mở 250 mảnh 5★ (5 tướng).
         # 2. Xả đủ 68 vé Thiên Mệnh: 1 đơn tân thủ + 6 lần x10 (60 vé) + 7 lần đơn (7 vé) => chạm mốc bảo hiểm 5★ thứ 68!
         await ws.send(_pkt_msg(1320, b"\x01"))
-        await asyncio.sleep(0.10)
+        await asyncio.sleep(0.06)
 
-        await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 1, 1)))
-        await asyncio.sleep(0.40)
+        await do_draw(1, 1, 1)
 
         for p_idx in range(1, 7):
           if REROLL_STATE["stopRequested"]:
             break
           set_step(f"Đang quay Thiên Mệnh x10 lần {p_idx}/6 (DT:{dt_count} | TNK:{tnk_count} | NT:{nt_count} | LT:{lt_count} | DTT:{dtt_count})...")
-          await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 2, 1)))
-          await asyncio.sleep(0.45)
+          await do_draw(1, 2, 1)
 
         for s_idx in range(1, 8):
           if REROLL_STATE["stopRequested"]:
             break
           set_step(f"Đang xả nốt 7 vé Thiên Mệnh lẻ ({s_idx}/7) chạm mốc 68 vé...")
-          await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 1, 1)))
-          await asyncio.sleep(0.44)
+          await do_draw(1, 1, 1)
 
         # LƯỚI BẢO HIỂM AN TOÀN: Nếu tổng tướng 5★ < 9 (chứng tỏ server trễ thư vé khiến đợt quay đầu hụt vé)
         # Nhận lại thư và quay bù vé ngay lập tức
         if len(heroes_5star) < 9 and not REROLL_STATE["stopRequested"]:
           set_step("Bảo hiểm vé trễ: Đang nhận lại thư & quay bù 68 vé Thiên Mệnh...")
           await ws.send(_pkt_msg(61))
-          await asyncio.sleep(0.45)
+          await asyncio.sleep(0.32)
           for _ in range(6):
             if REROLL_STATE["stopRequested"]:
               break
-            await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 2, 1)))
-            await asyncio.sleep(0.44)
+            await do_draw(1, 2, 1)
           for _ in range(7):
             if REROLL_STATE["stopRequested"]:
               break
-            await ws.send(_pkt_msg(213, struct.pack(">bbb", 1, 1, 1)))
-            await asyncio.sleep(0.42)
+            await do_draw(1, 1, 1)
 
         # 3. KIỂM TRA PHÔI ĐỎ SAU KHI QUAY 68 VÉ THIÊN MỆNH:
         red_counts = {h: heroes_5star.count(h) for h in ALL_RED_HEROES}
@@ -2221,15 +2286,13 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
           else:
             camp_id = 4
             set_step("Đang xả 14 vé Tam Giới vào Hệ Tiên (Săn Dương Tiễn / Na Tra)...")
-          await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 2, 1)))
-          await asyncio.sleep(0.45)
+          await do_draw(camp_id, 2, 1)
           for _ in range(4):
             if REROLL_STATE["stopRequested"]:
               break
-            await ws.send(_pkt_msg(213, struct.pack(">bbb", camp_id, 1, 1)))
-            await asyncio.sleep(0.44)
+            await do_draw(camp_id, 1, 1)
 
-        await asyncio.sleep(0.24)
+        await asyncio.sleep(0.12)
 
         # CẬP NHẬT LẠI ĐẾM TƯỚNG ĐỎ SAU KHI QUAY TAM GIỚI:
         red_counts = {h: heroes_5star.count(h) for h in ALL_RED_HEROES}
@@ -3011,8 +3074,8 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
               REROLL_STATE["reusableCount"] = len(REUSABLE_POOL)
               REROLL_STATE["accounts"].insert(0, res)
             if not res["isJackpot2x"]:
-              _save_reroll_files()
-            _log_roll_history(res)
+              await asyncio.to_thread(_save_reroll_files)
+            await asyncio.to_thread(_log_roll_history, res)
 
             from collections import Counter
             h_counts = Counter(res["heroes5Star"])

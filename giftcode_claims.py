@@ -9,7 +9,7 @@ from websockets.exceptions import ConnectionClosed
 
 
 class GiftcodeClaims:
-  def __init__(self, min_interval=0.45, timeout=1.80, max_attempts=7, reconnect_on_timeout=False):
+  def __init__(self, min_interval=0.40, timeout=1.80, max_attempts=7, reconnect_on_timeout=False):
     self.min_interval = min_interval
     self.timeout = timeout
     self.max_attempts = max_attempts
@@ -115,7 +115,7 @@ class GiftcodeClaims:
           await send(code)
           self._next_send = loop.time() + self.min_interval
           await asyncio.wait_for(self._event.wait(), self.timeout)
-          self._next_send = max(self._next_send, loop.time() + self.min_interval)
+          self._next_send = max(self._next_send, loop.time() + min(0.08, self.min_interval))
         except asyncio.TimeoutError:
           self.errors[code] = ("Hết thời gian chờ kết nối lại" if reconnecting and not self._pending
                                else "Hết thời gian chờ xác nhận") + (
