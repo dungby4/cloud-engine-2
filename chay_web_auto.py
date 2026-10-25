@@ -1998,7 +1998,8 @@ def fetch_latest_server_live():
   return ALL_SERVERS_DATA[0]
 
 
-WS_ACTIVE_SEM = asyncio.Semaphore(8)
+WS_ACTIVE_SEM = asyncio.Semaphore(16)
+CDK_ACTIVE_SEM = asyncio.Semaphore(3)
 
 
 async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
@@ -2188,28 +2189,31 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         await asyncio.sleep(0.08)
 
         total_codes = len(REROLL_GIFTCODES)
-        claims.max_attempts = 1
-        await claims.claim_all(
-            REROLL_GIFTCODES, send_code, reconnect_for_codes,
-            lambda: REROLL_STATE["stopRequested"], code_progress,
-        )
-        for _sweep_round in range(3):
-          missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
-          if not missing_codes or len(confirmed_codes) >= 26 or REROLL_STATE["stopRequested"]:
-            break
-          try:
-            await reconnect_for_codes()
-            claims.new_connection()
-          except Exception:
-            await asyncio.sleep(0.15)
-          claims.max_attempts = 2
+        async with CDK_ACTIVE_SEM:
+          claims.max_attempts = 1
           await claims.claim_all(
-              missing_codes, send_code, reconnect_for_codes,
+              REROLL_GIFTCODES, send_code, reconnect_for_codes,
               lambda: REROLL_STATE["stopRequested"], code_progress,
           )
-        if claims.needs_reconnect and not REROLL_STATE["stopRequested"]:
-          await reconnect_for_codes()
-          claims.new_connection()
+          for _sweep_round in range(2):
+            missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
+            if not missing_codes or len(confirmed_codes) >= 26 or REROLL_STATE["stopRequested"]:
+              break
+            try:
+              await reconnect_for_codes()
+              claims.new_connection()
+            except Exception:
+              await asyncio.sleep(0.15)
+            claims.max_attempts = 2
+            await claims.claim_all(
+                missing_codes, send_code, reconnect_for_codes,
+                lambda: REROLL_STATE["stopRequested"], code_progress,
+            )
+          if claims.needs_reconnect and not REROLL_STATE["stopRequested"]:
+            await reconnect_for_codes()
+            claims.new_connection()
+          if len(confirmed_codes) < 22 and not REROLL_STATE["stopRequested"]:
+            await asyncio.sleep(1.5)
 
         # Give the final giftcode mail time to arrive in mailbox
         await asyncio.sleep(0.85)
