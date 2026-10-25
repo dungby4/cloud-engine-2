@@ -1998,8 +1998,8 @@ def fetch_latest_server_live():
   return ALL_SERVERS_DATA[0]
 
 
-WS_ACTIVE_SEM = asyncio.Semaphore(18)
-CDK_ACTIVE_SEM = asyncio.Semaphore(5)
+WS_ACTIVE_SEM = asyncio.Semaphore(16)
+CDK_ACTIVE_SEM = asyncio.Semaphore(4)
 
 
 async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
@@ -2214,7 +2214,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
             claims.new_connection()
 
         # Give the final giftcode mail time to arrive in mailbox
-        await asyncio.sleep(0.35)
+        await asyncio.sleep(0.85)
 
         codes_stat = f"{len(confirmed_codes)}/{total_codes}"
         set_step(f"Đã xác nhận {codes_stat} Code ➜ Nhận thư & Mở 250 mảnh 5★...")
