@@ -9,7 +9,7 @@ from websockets.exceptions import ConnectionClosed
 
 
 class GiftcodeClaims:
-  def __init__(self, min_interval=0.28, timeout=0.65, max_attempts=5, reconnect_on_timeout=False):
+  def __init__(self, min_interval=0.30, timeout=0.92, max_attempts=5, reconnect_on_timeout=False):
     self.min_interval = min_interval
     self.timeout = timeout
     self.max_attempts = max_attempts
@@ -79,13 +79,15 @@ class GiftcodeClaims:
         self._event.set()
       # Success notices precede ACK 144. Other broadcasts aren't CDK replies.
 
-  async def _pause(self, seconds, stopped):
+  async def _pause(self, seconds, stopped, stop_early=None):
     end = asyncio.get_running_loop().time() + seconds
     while not stopped():
+      if stop_early and stop_early():
+        return True
       remaining = end - asyncio.get_running_loop().time()
       if remaining <= 0:
         return True
-      await asyncio.sleep(min(0.05, remaining))
+      await asyncio.sleep(min(0.04, remaining))
     return False
 
   async def claim_all(self, codes, send, reconnect, stopped, progress):
@@ -95,47 +97,57 @@ class GiftcodeClaims:
     for index, code in enumerate(codes, 1):
       if code in self.confirmed:
         continue
-      for attempt in range(self.max_attempts):
-        if stopped():
-          return
-        if not await self._pause(max(0.0, self._next_send - loop.time()), stopped):
-          return
-        self._retry_after = 0.0
-        self._terminal = False
-        self._last_notice = ""
-        reconnecting = self.needs_reconnect
-        try:
-          if reconnecting:
-            await reconnect()
-            self.new_connection()
-          self._pending = code
-          self._attempt = attempt
-          self._event.clear()
-          progress(index, len(codes), code, attempt + 1)
-          await send(code)
-          self._next_send = loop.time() + self.min_interval
-          await asyncio.wait_for(self._event.wait(), self.timeout)
-          self._next_send = max(self._next_send, loop.time() + min(0.08, self.min_interval))
-        except asyncio.TimeoutError:
-          self.errors[code] = ("Hết thời gian chờ kết nối lại" if reconnecting and not self._pending
-                               else "Hết thời gian chờ xác nhận") + (
-              f"; thông báo gần nhất: {self._last_notice}" if self._last_notice else ""
-          )
-          if self.reconnect_on_timeout or (reconnecting and not self._pending):
+      self._pending = code
+      try:
+        for attempt in range(self.max_attempts):
+          if stopped():
+            return
+          if not await self._pause(
+              max(0.0, self._next_send - loop.time()),
+              stopped,
+              lambda c=code: c in self.confirmed or self._terminal,
+          ):
+            return
+          if code in self.confirmed or self._terminal:
+            break
+          self._retry_after = 0.0
+          self._terminal = False
+          self._last_notice = ""
+          reconnecting = self.needs_reconnect
+          try:
+            if reconnecting:
+              await reconnect()
+              self.new_connection()
+            self._pending = code
+            self._attempt = attempt
+            self._event.clear()
+            progress(index, len(codes), code, attempt + 1)
+            await send(code)
+            self._next_send = loop.time() + self.min_interval
+            await asyncio.wait_for(self._event.wait(), self.timeout)
+            self._next_send = max(self._next_send, loop.time() + min(0.08, self.min_interval))
+          except asyncio.TimeoutError:
+            self.errors[code] = ("Hết thời gian chờ kết nối lại" if reconnecting and not self._pending
+                                 else "Hết thời gian chờ xác nhận") + (
+                f"; thông báo gần nhất: {self._last_notice}" if self._last_notice else ""
+            )
+            if self.reconnect_on_timeout or (reconnecting and not self._pending):
+              self.needs_reconnect = True
+          except (OSError, ConnectionClosed) as error:
+            self.errors[code] = f"Lỗi kết nối giftcode: {type(error).__name__}"
             self.needs_reconnect = True
-        except (OSError, ConnectionClosed) as error:
-          self.errors[code] = f"Lỗi kết nối giftcode: {type(error).__name__}"
-          self.needs_reconnect = True
-        finally:
-          self._pending = None
-        if self._abort:
-          return
-        if code in self.confirmed or self._terminal:
-          break
-        if self._retry_after > 0:
-          backoff = self._retry_after + random.uniform(0.05, 0.20)
-        elif self.reconnect_on_timeout:
-          backoff = self.min_interval * 2 ** (attempt + 1) + random.uniform(0.05, 0.20)
-        else:
-          backoff = 0.06 + random.uniform(0.02, 0.08)
-        self._next_send = max(self._next_send, loop.time() + backoff)
+          if self._abort:
+            return
+          if code in self.confirmed or self._terminal:
+            break
+          if self._retry_after > 0:
+            backoff = self._retry_after + random.uniform(0.05, 0.20)
+          elif self.reconnect_on_timeout:
+            backoff = self.min_interval * 2 ** (attempt + 1) + random.uniform(0.05, 0.20)
+          else:
+            backoff = 0.18 + random.uniform(0.04, 0.12)
+          self._next_send = max(self._next_send, loop.time() + backoff)
+        if code not in self.confirmed and not self._terminal and not self._abort:
+          await self._pause(0.16, stopped, lambda c=code: c in self.confirmed or self._terminal)
+      finally:
+        self._pending = None
