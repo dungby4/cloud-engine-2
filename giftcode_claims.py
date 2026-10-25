@@ -9,7 +9,7 @@ from websockets.exceptions import ConnectionClosed
 
 
 class GiftcodeClaims:
-  def __init__(self, min_interval=0.30, timeout=0.92, max_attempts=5, reconnect_on_timeout=False):
+  def __init__(self, min_interval=0.28, timeout=0.65, max_attempts=3, reconnect_on_timeout=False):
     self.min_interval = min_interval
     self.timeout = timeout
     self.max_attempts = max_attempts
@@ -145,9 +145,7 @@ class GiftcodeClaims:
           elif self.reconnect_on_timeout:
             backoff = self.min_interval * 2 ** (attempt + 1) + random.uniform(0.05, 0.20)
           else:
-            backoff = 0.18 + random.uniform(0.04, 0.12)
+            backoff = 0.07 + random.uniform(0.02, 0.06)
           self._next_send = max(self._next_send, loop.time() + backoff)
-        if code not in self.confirmed and not self._terminal and not self._abort:
-          await self._pause(0.16, stopped, lambda c=code: c in self.confirmed or self._terminal)
       finally:
         self._pending = None
