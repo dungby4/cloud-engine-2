@@ -191,7 +191,7 @@ ACCOUNT_PREFIX = str(APP_CONFIG.get("account_prefix") or "htdvipa")
 FRESH_ONLY = bool(APP_CONFIG.get("fresh_only", True))
 PARALLEL_REROLL_WORKERS = int(APP_CONFIG.get("threads") or 48)
 
-CDN_BASE = "https://rescdnft105vn.ridvqqxa.com/13528/"
+CDN_BASE = "https://rescdnft105vn.ridvqqxa.com/13542/"
 CDN_CACHE_DIR = os.path.join(DIRECTORY, "cdn_cache")
 PATCHED_GAME_JS = os.path.join(DIRECTORY, "js", "game.js")
 STATE_FILE = os.path.join(DIRECTORY, "ai_state.json")
@@ -328,41 +328,217 @@ AI_STATE = {
 }
 
 
-_AUTHKEY_CACHE = {"ts": "", "ak": "", "exp": 0.0}
+_AUTHKEY_CACHE = {}
+_ACCOUNT_CREDS_MAP = {}
 _AUTHKEY_LOCK = threading.Lock()
 
 
-def fetch_fresh_authkey(account_id="230519465", token="r"):
-  """Fetches fresh GLOBAL_TIMESTAMP and GLOBAL_AUTHKEY from Funtap igame.php (cached for 45s across workers)."""
+def register_account_creds(account_id, username="", password="", access_token=""):
+  """Caches account credentials and MontarSDK access_token in memory for igame.php 13542 auth."""
+  acc_s = str(account_id or "").strip()
+  u_s = str(username or "").strip()
+  p_s = str(password or "").strip()
+  t_s = str(access_token or "").strip()
+  if not acc_s and not u_s:
+    return
+  with _AUTHKEY_LOCK:
+    prev = _ACCOUNT_CREDS_MAP.get(acc_s) or _ACCOUNT_CREDS_MAP.get(u_s) or {}
+    entry = {
+        "id": acc_s or prev.get("id", ""),
+        "u": u_s or prev.get("u", ""),
+        "p": p_s or prev.get("p", ""),
+        "tok": t_s if t_s not in ("", "r") else prev.get("tok", ""),
+    }
+    if entry["id"]:
+      _ACCOUNT_CREDS_MAP[entry["id"]] = entry
+    if entry["u"]:
+      _ACCOUNT_CREDS_MAP[entry["u"]] = entry
+
+
+def _lookup_account_creds(account_id, username="", password="", token="r"):
+  acc_s = str(account_id or "").strip()
+  u_s = str(username or "").strip()
+  p_s = str(password or "").strip()
+  t_s = str(token or "").strip()
+  with _AUTHKEY_LOCK:
+    info = _ACCOUNT_CREDS_MAP.get(acc_s) or _ACCOUNT_CREDS_MAP.get(u_s) or {}
+    if info:
+      acc_s = info.get("id") or acc_s
+      u_s = u_s or info.get("u", "")
+      p_s = p_s or info.get("p", "")
+      if t_s in ("", "r") and info.get("tok"):
+        t_s = info["tok"]
+
+  if not u_s or not p_s:
+    try:
+      with REROLL_LOCK:
+        if acc_s in REUSABLE_POOL:
+          item = REUSABLE_POOL[acc_s]
+          u_s = u_s or item.get("u", "")
+          p_s = p_s or item.get("p", "")
+          acc_s = str(item.get("id") or acc_s)
+          if t_s in ("", "r") and item.get("tok"):
+            t_s = item["tok"]
+        else:
+          for item in REUSABLE_POOL.values():
+            if str(item.get("id") or "") == acc_s:
+              u_s = u_s or item.get("u", "")
+              p_s = p_s or item.get("p", "")
+              if t_s in ("", "r") and item.get("tok"):
+                t_s = item["tok"]
+              break
+        if not u_s or not p_s:
+          for a in REROLL_STATE.get("accounts") or []:
+            if str(a.get("funtapId") or "") == acc_s or str(a.get("account") or "") == acc_s:
+              u_s = u_s or str(a.get("account") or "")
+              p_s = p_s or str(a.get("password") or "")
+              if a.get("funtapId"):
+                acc_s = str(a["funtapId"])
+              break
+    except Exception:
+      pass
+  return acc_s, u_s, p_s, (t_s or "r")
+
+
+def _fetch_montar_token(username, password):
+  u_s = (username or "").strip()
+  p_s = (password or "").strip()
+  if not u_s:
+    return "", ""
+  cand_pwds = []
+  for cp in [p_s, "tphtd123", "Password123", "123456"]:
+    if cp and cp not in cand_pwds:
+      cand_pwds.append(cp)
+  endpoints = [
+      "https://core.sdkmain.com/api/v1/apps/f0d9c5e4b5d0de9bd966ed884c72e5ad/vi/auth/login",
+      "https://core.sdkmain.com/api/v1/apps/f0d9c5e4b5d0de9bd966ed884c72e5ad/com.loinguyen.nguoigiuuuuu.ftg/auth/login",
+  ]
+  for pwd in cand_pwds:
+    form_body = urllib.parse.urlencode({
+        "email": u_s,
+        "password": pwd,
+        "device_os": "18.0",
+        "device_name": "iPhone",
+        "device_resolution": "1170x2532",
+        "device_network": "1",
+        "sdk_version": "7.0.0",
+    }).encode("utf-8")
+    for ep in endpoints:
+      try:
+        req = urllib.request.Request(
+            ep,
+            data=form_body,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+                "User-Agent": "HacTayDu/1.0.1 (iPhone; iOS 18.0; Scale/3.00)",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=6) as resp:
+          raw = resp.read().decode("utf-8", errors="ignore")
+        data = json.loads(raw)
+        tok = str(data.get("access_token") or "").strip()
+        d = data.get("data") or {}
+        acc_obj = d.get("account") or {}
+        real_id = str(acc_obj.get("account_id") or d.get("id") or "").strip()
+        if tok:
+          register_account_creds(real_id, u_s, pwd, tok)
+          return tok, real_id
+      except urllib.error.HTTPError as he:
+        if he.code == 412:
+          break
+      except Exception:
+        continue
+  return "", ""
+
+
+def fetch_fresh_authkey(account_id="230519465", token="r", username="", password=""):
+  """Fetches fresh GLOBAL_TIMESTAMP, GLOBAL_AUTHKEY, and GLOBAL_USER_IP from Funtap igame.php (per-account cached for 45s)."""
+  if username or password or (token and token != "r"):
+    register_account_creds(account_id, username, password, token)
+  acc_s, u_s, p_s, tok_s = _lookup_account_creds(account_id, username, password, token)
+  cache_key = acc_s or "230519465"
   now = time.time()
   with _AUTHKEY_LOCK:
-    if _AUTHKEY_CACHE["ts"] and _AUTHKEY_CACHE["ak"] and now < _AUTHKEY_CACHE["exp"]:
-      return {"timestamp": _AUTHKEY_CACHE["ts"], "authKey": _AUTHKEY_CACHE["ak"]}
-  try:
-    q_acc = urllib.parse.quote(str(account_id or "230519465"))
-    q_tok = urllib.parse.quote(str(token or "r"))
-    url = f"https://funtap-xy.xinliugame.net/funtap/igame.php?accountID={q_acc}&token={q_tok}&v=1&appVersion=1.0.1"
+    cached = _AUTHKEY_CACHE.get(cache_key)
+    if cached and cached.get("ts") and cached.get("ak") and now < cached.get("exp", 0):
+      if cached.get("valid_acc") or tok_s in ("", "r"):
+        return {
+            "timestamp": cached["ts"],
+            "authKey": cached["ak"],
+            "userIp": cached.get("uip") or "127.0.0.1",
+            "accessToken": cached.get("tok") or tok_s,
+            "accountId": cache_key,
+        }
+
+  def _call_igame(q_id, q_tk):
+    url = (
+        "https://funtap-xy.xinliugame.net/funtap/igame.php?accountID="
+        f"{urllib.parse.quote(str(q_id))}&token={urllib.parse.quote(str(q_tk))}&v=1&appVersion=1.0.1"
+    )
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=6) as resp:
-      txt = resp.read().decode("utf-8", errors="ignore")
+      return resp.read().decode("utf-8", errors="ignore")
+
+  try:
+    txt = ""
+    m_acc = None
+    if tok_s not in ("", "r"):
+      txt = _call_igame(cache_key, tok_s)
+      m_acc = re.search(r'GLOBAL_ACCOUNT\s*=\s*"([^"]+)"', txt)
+
+    if (not m_acc or not m_acc.group(1)) and u_s:
+      new_tok, resolved_id = _fetch_montar_token(u_s, p_s)
+      if resolved_id:
+        cache_key = resolved_id
+      if new_tok:
+        tok_s = new_tok
+        txt = _call_igame(cache_key, tok_s)
+        m_acc = re.search(r'GLOBAL_ACCOUNT\s*=\s*"([^"]+)"', txt)
+
+    if not txt:
+      txt = _call_igame(cache_key, tok_s or "r")
+      m_acc = re.search(r'GLOBAL_ACCOUNT\s*=\s*"([^"]+)"', txt)
+
     m_ts = re.search(r'GLOBAL_TIMESTAMP\s*=\s*"([^"]+)"', txt)
     m_ak = re.search(r'GLOBAL_AUTHKEY\s*=\s*"([^"]+)"', txt)
+    m_ip = re.search(r'GLOBAL_USER_IP\s*=\s*"([^"]*)"', txt)
     if m_ts and m_ak:
       ts_val, ak_val = m_ts.group(1), m_ak.group(1)
+      uip_val = (m_ip.group(1).strip() if m_ip and m_ip.group(1).strip() else "127.0.0.1")
+      valid_acc = bool(m_acc and m_acc.group(1))
+      if valid_acc and u_s:
+        register_account_creds(cache_key, u_s, p_s, tok_s)
       with _AUTHKEY_LOCK:
-        _AUTHKEY_CACHE["ts"] = ts_val
-        _AUTHKEY_CACHE["ak"] = ak_val
-        _AUTHKEY_CACHE["exp"] = time.time() + 45.0
+        _AUTHKEY_CACHE[cache_key] = {
+            "ts": ts_val,
+            "ak": ak_val,
+            "uip": uip_val,
+            "tok": tok_s,
+            "valid_acc": valid_acc,
+            "exp": time.time() + (45.0 if valid_acc else 5.0),
+        }
       with STATE_LOCK:
         AI_STATE["timestamp"] = ts_val
         AI_STATE["authKey"] = ak_val
-      return {"timestamp": ts_val, "authKey": ak_val}
+        AI_STATE["userIp"] = uip_val
+      return {
+          "timestamp": ts_val,
+          "authKey": ak_val,
+          "userIp": uip_val,
+          "accessToken": tok_s,
+          "accountId": cache_key,
+      }
   except Exception:
     pass
   with STATE_LOCK:
     return {
         "timestamp": AI_STATE.get("timestamp", "1792636795"),
         "authKey": AI_STATE.get("authKey", "830c88a40d7bbeb624e3b6f1f7a86315"),
+        "userIp": AI_STATE.get("userIp", "127.0.0.1"),
+        "accessToken": tok_s,
+        "accountId": cache_key,
     }
 
 
@@ -465,7 +641,8 @@ def funtap_login_authenticate(username, password):
   fun_name = str(d.get("name") or username)
   access_token = str(resp_json.get("access_token") or "r")
 
-  ak_info = fetch_fresh_authkey(account_id, access_token)
+  register_account_creds(account_id, fun_name, password, access_token)
+  ak_info = fetch_fresh_authkey(account_id, access_token, fun_name, password)
 
   # Check existing characters across candidate IDs (account_id, fun_id, fun_name)
   all_chars = []
@@ -2047,10 +2224,15 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
     with REROLL_LOCK:
       REROLL_STATE["stepMsg"] = f"[{idx_label}] {acc_id} (ID:{real_acc_id} | {srv_name}): {msg}"
 
-  fake_client_ip = f"14.{random.randint(160, 247)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
-
   async def build_login_packet():
-    ak_info = await asyncio.to_thread(fetch_fresh_authkey, real_acc_id, access_tok)
+    nonlocal access_tok
+    try:
+      ak_info = await asyncio.to_thread(fetch_fresh_authkey, real_acc_id, access_tok, acc_id, acc_pwd)
+    except TypeError:
+      ak_info = await asyncio.to_thread(fetch_fresh_authkey, real_acc_id, access_tok)
+    if ak_info.get("accessToken") and ak_info["accessToken"] not in ("", "r"):
+      access_tok = ak_info["accessToken"]
+    client_ip = ak_info.get("userIp") or "127.0.0.1"
     json_datas = json.dumps({"gamePlatform": "funtap", "appid": "ios", "pf": "ios_funtap", "phoneSystem": 2})
     login_payload = bytearray()
     login_payload.extend(_pkt_str(f"{sid}-{real_acc_id}"))
@@ -2058,7 +2240,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
     login_payload.extend(_pkt_str(ak_info["authKey"]))
     login_payload.extend(_pkt_str("vn"))
     login_payload.extend(_pkt_str("VN"))
-    login_payload.extend(_pkt_str(fake_client_ip))
+    login_payload.extend(_pkt_str(client_ip))
     login_payload.extend(_pkt_str(json_datas))
     login_payload.extend(_pkt_str(""))
     return _pkt_msg(56, login_payload)
@@ -2083,10 +2265,10 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   draw_ev = asyncio.Event()
   claims = GiftcodeClaims()
   if getattr(claims, "timeout", 0.0) >= 1.0:
-    claims.min_interval = 0.45
-    claims.timeout = 2.85
+    claims.min_interval = 0.34
+    claims.timeout = 1.45
     claims.reconnect_on_timeout = False
-    claims.max_attempts = 3
+    claims.max_attempts = 1
   confirmed_codes = claims.confirmed
 
   def record_packet(resp):
@@ -2239,8 +2421,10 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
           cdk_sem_held = True
 
         total_codes = len(REROLL_GIFTCODES)
+        is_prod_claims = getattr(claims, "timeout", 0.0) >= 1.0
         try:
-          claims.max_attempts = 3
+          if is_prod_claims:
+            claims.max_attempts = 1
           await claims.claim_all(
               REROLL_GIFTCODES, send_code, reconnect_for_codes,
               lambda: REROLL_STATE["stopRequested"], code_progress,
@@ -2248,18 +2432,19 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         except Exception:
           pass
 
-        for _sweep_round in range(5):
+        for _sweep_round in range(2):
           missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
-          if not missing_codes or REROLL_STATE["stopRequested"]:
+          if not missing_codes or (is_prod_claims and len(confirmed_codes) >= 25) or REROLL_STATE["stopRequested"]:
             break
           try:
             await reconnect_for_codes()
             claims.new_connection()
           except Exception:
-            await asyncio.sleep(0.20)
+            await asyncio.sleep(0.15)
           try:
-            claims.timeout = 3.2
-            claims.max_attempts = 3
+            if is_prod_claims:
+              claims.timeout = 1.55
+              claims.max_attempts = 1
             await claims.claim_all(
                 missing_codes, send_code, reconnect_for_codes,
                 lambda: REROLL_STATE["stopRequested"], code_progress,
@@ -2530,24 +2715,26 @@ async def _capture_winner_screenshot_async(res):
     script_path = os.path.join(DIRECTORY, "capture_winner.py")
 
     try:
-      proc = await asyncio.create_subprocess_exec(
-          sys.executable, script_path,
-          "--acc", acc_name,
-          "--fid", fid,
-          "--sid", str(sid),
-          "--port", str(PORT),
-          stdout=asyncio.subprocess.PIPE,
-          stderr=asyncio.subprocess.PIPE,
+      import subprocess
+      out_path = os.path.join(DIRECTORY, "anh_nick_trung", f"{acc_name}_S{srv_num}.png")
+      cp = await asyncio.to_thread(
+          subprocess.run,
+          [sys.executable, script_path, "--acc", acc_name, "--fid", fid, "--sid", str(sid), "--port", str(PORT)],
+          capture_output=True,
+          text=True,
+          encoding="utf-8",
+          errors="ignore",
+          timeout=120.0,
       )
-      stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120.0)
-      out_txt = stdout.decode("utf-8", errors="ignore")
-      if out_txt:
-        for line in out_txt.splitlines():
+      if cp.stdout:
+        for line in cp.stdout.splitlines():
           if line.strip():
             print(f"   [SnapSub] {line.strip()}", flush=True)
-      return rel_path
+      if os.path.exists(out_path) and os.path.getsize(out_path) > 10000:
+        return rel_path
+      return ""
     except Exception as e:
-      print(f"⚠️ [Screenshot Subprocess] Lỗi chụp ảnh {acc_name}: {e}", flush=True)
+      print(f"⚠️ [Screenshot Subprocess] Lỗi chụp ảnh {acc_name}: {type(e).__name__}: {e}", flush=True)
       return ""
 
 
@@ -2776,8 +2963,8 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
     async def _run_pool():
       nonlocal srv_info, count
       global WS_ACTIVE_SEM, CDK_ACTIVE_SEM
-      WS_ACTIVE_SEM = asyncio.Semaphore(45)
-      CDK_ACTIVE_SEM = asyncio.Semaphore(5)
+      WS_ACTIVE_SEM = asyncio.Semaphore(5)
+      CDK_ACTIVE_SEM = None
       existing_names = set()
       used_funtap_ids = set()
       max_seen_seq = 0
@@ -2946,37 +3133,38 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
             reg_info = None
             cur_srv = srv_info
             cur_sid_int = int(cur_srv["sid"])
-            for _try_roll in range(2):
-              with REROLL_LOCK:
-                if REROLL_STATE["stopRequested"]:
-                  return
-              try:
-                reg_info = await asyncio.to_thread(_acquire_or_register_account, cur_sid_int)
-              except Exception:
-                reg_info = None
-              if not reg_info:
-                await asyncio.sleep(1.0)
-                continue
-              try:
-                res = await _reroll_single_account(reg_info, cur_srv, f"{idx_order}/{count}", seq_num=idx_order)
-              finally:
+            try:
+              reg_info = await asyncio.to_thread(_acquire_or_register_account, cur_sid_int)
+            except Exception:
+              reg_info = None
+            if not reg_info:
+              await asyncio.sleep(1.0)
+              continue
+            try:
+              for _try_roll in range(2):
                 with REROLL_LOCK:
-                  IN_FLIGHT_USERS.discard(reg_info["username"])
+                  if REROLL_STATE["stopRequested"]:
+                    return
+                res = await _reroll_single_account(reg_info, cur_srv, f"{idx_order}/{count}", seq_num=idx_order)
+                if res and (res.get("isJackpot2x") or len(res.get("heroes5Star") or []) >= 1 or len(res.get("confirmedCodes") or []) >= 1):
+                  break
+            finally:
+              with REROLL_LOCK:
+                IN_FLIGHT_USERS.discard(reg_info["username"])
+
+            if not res or (len(res.get("heroes5Star") or []) < 5 and not res.get("isJackpot2x")):
               if reg_info.get("reused"):
                 with REROLL_LOCK:
                   if reg_info["username"] in REUSABLE_POOL:
                     REUSABLE_POOL[reg_info["username"]]["sid"] = cur_sid_int
-                if res:
-                  break
-              if res and len(res.get("heroes5Star") or []) >= 11 and len(res.get("confirmedCodes") or []) == len(REROLL_GIFTCODES):
-                break
-
-            # BỘ LỌC CHẶN PASS GIẢ: Bắt buộc tài khoản hợp lệ phải có ít nhất 11 tướng 5★ và đủ 28/28 mã Giftcode
-            if not res or len(res.get("heroes5Star") or []) < 11 or len(res.get("confirmedCodes") or []) < len(REROLL_GIFTCODES):
-              if res:
-                disp_acc_chk = "***" if os.environ.get("GITHUB_ACTIONS", "").lower() == "true" else res.get("account")
-                code_stat_chk = res.get("codesClaimed", "0/0")
-                print(f"⚠️ [{disp_acc_chk}] Bỏ qua nick chưa đạt chuẩn ({len(res.get('heroes5Star') or [])} tướng 5★ < 11, code {code_stat_chk}) — Lọc sạch pass giả!", flush=True)
+              elif reg_info.get("fromHub") and len((res or {}).get("heroes5Star") or []) == 0:
+                with REROLL_LOCK:
+                  REUSABLE_POOL[reg_info["username"]] = {
+                      "u": reg_info["username"],
+                      "p": reg_info["password"],
+                      "id": str(reg_info["accountId"]),
+                      "sid": 0,
+                  }
               continue
 
             completed_cnt += 1
@@ -3768,8 +3956,10 @@ class DAutoAIRequestHandler(SimpleHTTPRequestHandler):
       showStatus("🚀 Đang vào <b>" + srvName + "</b> với ID Tài Khoản: <b>" + acc + "</b>...", false);
 
       var frame = document.getElementById("gameFrame");
+      var savedTok = localStorage.getItem("DAUTO_WEB_TOKEN") || "r";
       frame.src = "/play_frame?acc=" + encodeURIComponent(acc) +
                   "&sid=" + encodeURIComponent(sid) +
+                  "&token=" + encodeURIComponent(savedTok) +
                   "&direct=" + (directMode ? "1" : "0") +
                   "&t=" + Date.now();
     }}
@@ -3896,6 +4086,7 @@ class DAutoAIRequestHandler(SimpleHTTPRequestHandler):
     params = urllib.parse.parse_qs(query_str)
     acc = params.get("acc", [AI_STATE.get("account") or "720452341"])[0].strip()
     sid_str = params.get("sid", ["610039"])[0].strip()
+    tok_str = params.get("token", ["r"])[0].strip()
     direct_mode = int(params.get("direct", ["0"])[0] or "0")
 
     srv_info = None
@@ -3919,9 +4110,12 @@ class DAutoAIRequestHandler(SimpleHTTPRequestHandler):
     if not srv_info:
       srv_info = ALL_SERVERS_DATA[0]
 
-    ak_info = fetch_fresh_authkey(acc)
+    ak_info = fetch_fresh_authkey(acc, tok_str)
+    if ak_info.get("accountId"):
+      acc = str(ak_info["accountId"])
     ts = ak_info["timestamp"]
     auth_key = ak_info["authKey"]
+    user_ip = ak_info.get("userIp") or "127.0.0.1"
 
     html = f"""<!DOCTYPE html>
 <html lang="vi">
@@ -3952,6 +4146,7 @@ class DAutoAIRequestHandler(SimpleHTTPRequestHandler):
       serverName: {json.dumps(srv_info["name"])},
       timestamp: {json.dumps(ts)},
       authKey: {json.dumps(auth_key)},
+      userIp: {json.dumps(user_ip)},
       directEnter: {direct_mode}
     }};
 
@@ -3976,12 +4171,12 @@ class DAutoAIRequestHandler(SimpleHTTPRequestHandler):
       Global.GLOBAL_ACCOUNT = cfg.account;
       Global.ACCOUNT = cfg.account;
       Global.GLOBAL_OPENID = cfg.account;
-      Global.GLOBAL_USER_IP = "127.0.0.1";
+      Global.GLOBAL_USER_IP = cfg.userIp || "127.0.0.1";
       Global.GLOBAL_REGION = "VN";
       Global.GLOBAL_PF = "ios_funtap";
       Global.GAME_PLATFORM = "funtap";
       Global.GLOBAL_APPID = "ios";
-      Global.GLOBAL_VERSION = "13528";
+      Global.GLOBAL_VERSION = "13542";
       Global.GLOBAL_LANG = "vn";
       Global.RESHOST = origin + "/cdn/";
       Global.GLOBAL_ENTRY_DOMAIN = "https://funtap-xy.ridvqqxa.com/";

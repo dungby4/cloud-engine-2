@@ -1054,7 +1054,10 @@ try{Object.assign(window,{p:p,n:n,zi:n,tt:tt,ga:ga,H:H,O:O,K:K,we:we,gs:gs,Ri:Ri
           var timer = setTimeout(function() {
             if (!done) { done = true; if (cb) cb(); }
           }, 1800);
-          fetch(self.agyServerUrl + "/api/authkey?t=" + Date.now())
+          var curAcc = (typeof p !== "undefined" && p.ACCOUNT) ? encodeURIComponent(String(p.ACCOUNT)) : "";
+          var curTok = "";
+          try { curTok = encodeURIComponent(localStorage.getItem("DAUTO_WEB_TOKEN") || "r"); } catch(e) {}
+          fetch(self.agyServerUrl + "/api/authkey?acc=" + curAcc + "&token=" + curTok + "&t=" + Date.now())
             .then(function(r) { return r.json(); })
             .then(function(res) {
               if (done) return;
@@ -1063,6 +1066,7 @@ try{Object.assign(window,{p:p,n:n,zi:n,tt:tt,ga:ga,H:H,O:O,K:K,we:we,gs:gs,Ri:Ri
                 clearTimeout(timer);
                 p.GLOBAL_TIMESTAMP = res.timestamp;
                 p.GLOBAL_AUTHKEY = res.authKey;
+                if (res.userIp) p.GLOBAL_USER_IP = res.userIp;
                 if (cb) cb();
               } else {
                 throw new Error("fallback");
