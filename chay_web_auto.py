@@ -1718,7 +1718,7 @@ def _save_reroll_files(force=False):
   import csv
   from collections import Counter
   now_ts = time.time()
-  if not force and (now_ts - LAST_DISK_SAVE_TS[0] < 12.0):
+  if not force and (now_ts - LAST_DISK_SAVE_TS[0] < 30.0):
     return
   LAST_DISK_SAVE_TS[0] = now_ts
 
@@ -2028,7 +2028,7 @@ def fetch_latest_server_live():
 
 
 WS_ACTIVE_SEM = asyncio.Semaphore(16)
-CDK_ACTIVE_SEM = asyncio.Semaphore(4)
+CDK_ACTIVE_SEM = asyncio.Semaphore(3)
 
 
 async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
@@ -2243,7 +2243,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
             claims.new_connection()
 
         # Give the final giftcode mail time to arrive in mailbox
-        await asyncio.sleep(0.85)
+        await asyncio.sleep(0.95)
 
         codes_stat = f"{len(confirmed_codes)}/{total_codes}"
         set_step(f"Đã xác nhận {codes_stat} Code ➜ Nhận thư & Mở 250 mảnh 5★...")
