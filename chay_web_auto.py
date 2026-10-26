@@ -2267,8 +2267,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   draw_ev = asyncio.Event()
   claims = GiftcodeClaims()
   if getattr(claims, "timeout", 0.0) >= 1.0:
-    claims.min_interval = 0.34
-    claims.timeout = 1.45
+    claims.min_interval = 0.20
+    claims.timeout = 1.05
     claims.reconnect_on_timeout = False
     claims.max_attempts = 1
   confirmed_codes = claims.confirmed
@@ -2969,7 +2969,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
     async def _run_pool():
       nonlocal srv_info, count
       global WS_ACTIVE_SEM, CDK_ACTIVE_SEM
-      ws_limit = 5 if PARALLEL_REROLL_WORKERS <= 10 else min(14, max(6, PARALLEL_REROLL_WORKERS // 2))
+      ws_limit = 5 if PARALLEL_REROLL_WORKERS <= 10 else min(16, max(6, int(PARALLEL_REROLL_WORKERS * 0.6)))
       WS_ACTIVE_SEM = asyncio.Semaphore(ws_limit)
       CDK_ACTIVE_SEM = None
       existing_names = set()
