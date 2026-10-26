@@ -95,7 +95,7 @@ def main() -> None:
                 lines = txt_path.read_text(encoding="utf-8", errors="ignore").splitlines()
                 for line in lines:
                     line_str = line.strip()
-                    if not line_str or "|" not in line_str:
+                    if not line_str or "|" not in line_str or line_str.startswith("#"):
                         continue
                     parts = [p.strip() for p in line_str.split("|")]
                     if len(parts) < 4:
