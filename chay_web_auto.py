@@ -2027,7 +2027,7 @@ def fetch_latest_server_live():
 
 
 WS_ACTIVE_SEM = asyncio.Semaphore(45)
-CDK_ACTIVE_SEM = asyncio.Semaphore(3)
+CDK_ACTIVE_SEM = asyncio.Semaphore(4)
 
 
 async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
@@ -2079,7 +2079,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   draw_ev = asyncio.Event()
   claims = GiftcodeClaims()
   if getattr(claims, "timeout", 0.0) >= 1.0:
-    claims.min_interval = 0.36
+    claims.min_interval = 0.35
     claims.timeout = 1.65
     claims.reconnect_on_timeout = False
     claims.max_attempts = 1
@@ -2234,26 +2234,34 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
               REROLL_GIFTCODES, send_code, reconnect_for_codes,
               lambda: REROLL_STATE["stopRequested"], code_progress,
           )
-          for _sweep_round in range(2):
-            missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
-            if not missing_codes or REROLL_STATE["stopRequested"]:
-              break
-            try:
-              await reconnect_for_codes()
-              claims.new_connection()
-            except Exception:
-              await asyncio.sleep(0.10)
+        finally:
+          if cdk_sem:
+            cdk_sem.release()
+
+        for _sweep_round in range(2):
+          missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
+          if not missing_codes or REROLL_STATE["stopRequested"]:
+            break
+          try:
+            await reconnect_for_codes()
+            claims.new_connection()
+          except Exception:
+            await asyncio.sleep(0.10)
+          if cdk_sem:
+            await cdk_sem.acquire()
+          try:
             claims.max_attempts = getattr(claims, "max_attempts", 1)
             await claims.claim_all(
                 missing_codes, send_code, reconnect_for_codes,
                 lambda: REROLL_STATE["stopRequested"], code_progress,
             )
-          if claims.needs_reconnect and not REROLL_STATE["stopRequested"]:
-            await reconnect_for_codes()
-            claims.new_connection()
-        finally:
-          if cdk_sem:
-            cdk_sem.release()
+          finally:
+            if cdk_sem:
+              cdk_sem.release()
+
+        if claims.needs_reconnect and not REROLL_STATE["stopRequested"]:
+          await reconnect_for_codes()
+          claims.new_connection()
 
         # Give the final giftcode mail time to arrive in mailbox
         await asyncio.sleep(0.70)
