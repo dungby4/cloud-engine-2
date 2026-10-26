@@ -9,7 +9,7 @@ from websockets.exceptions import ConnectionClosed
 
 
 class GiftcodeClaims:
-  def __init__(self, min_interval=0.30, timeout=1.65, max_attempts=1, reconnect_on_timeout=False):
+  def __init__(self, min_interval=0.34, timeout=1.35, max_attempts=3, reconnect_on_timeout=True):
     self.min_interval = min_interval
     self.timeout = timeout
     self.max_attempts = max_attempts
@@ -46,6 +46,7 @@ class GiftcodeClaims:
       self.confirmed.add(self._pending)
       self.errors.pop(self._pending, None)
       self._had_retry = self._attempt >= 1
+      self._consec_timeouts = 0
       self._event.set()
     elif msg_id == 10 and size >= 10:
       # GC_BROADCAST(int, int, string), as decoded by the game client.
@@ -98,6 +99,9 @@ class GiftcodeClaims:
       if code in self.confirmed:
         continue
       self._pending = code
+      self._terminal = False
+      self._retry_after = 0.0
+      self._last_notice = ""
       try:
         for attempt in range(self.max_attempts):
           if stopped():
@@ -127,12 +131,15 @@ class GiftcodeClaims:
             await asyncio.wait_for(self._event.wait(), self.timeout)
             self._next_send = max(self._next_send, loop.time() + min(0.08, self.min_interval))
           except asyncio.TimeoutError:
+            self._consec_timeouts += 1
             self.errors[code] = ("Hết thời gian chờ kết nối lại" if reconnecting and not self._pending
                                  else "Hết thời gian chờ xác nhận") + (
                 f"; thông báo gần nhất: {self._last_notice}" if self._last_notice else ""
             )
             if self.reconnect_on_timeout or (reconnecting and not self._pending):
               self.needs_reconnect = True
+            if self._consec_timeouts >= 2:
+              self._retry_after = max(self._retry_after, 1.2)
           except (OSError, ConnectionClosed) as error:
             self.errors[code] = f"Lỗi kết nối giftcode: {type(error).__name__}"
             self.needs_reconnect = True
