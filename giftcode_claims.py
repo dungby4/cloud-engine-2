@@ -19,7 +19,6 @@ class GiftcodeClaims:
     self.needs_reconnect = False
     self._pending = None
     self._attempt = 0
-    self._had_retry = False
     self._event = asyncio.Event()
     self._next_send = 0.0
     self._retry_after = 0.0
@@ -31,7 +30,6 @@ class GiftcodeClaims:
   def new_connection(self):
     self._pending = None
     self.needs_reconnect = False
-    self._had_retry = False
     self._event.clear()
 
   def record_packet(self, packet):
@@ -45,7 +43,6 @@ class GiftcodeClaims:
     if msg_id == 144:
       self.confirmed.add(self._pending)
       self.errors.pop(self._pending, None)
-      self._had_retry = self._attempt >= 1
       self._consec_timeouts = 0
       self._event.set()
     elif msg_id == 10 and size >= 10:
@@ -56,13 +53,8 @@ class GiftcodeClaims:
       message = packet[14:].decode("utf-8", errors="replace")
       self._last_notice = message
       if message.startswith("已达到领取上限") or "请前往信件查收" in message or "急急如律令" in message:
-        # If the previous code required retries and we are on attempt 0 of a new code,
-        # this notice is a trailing duplicate reply from the previous code's retry.
-        if self._attempt == 0 and self._had_retry:
-          return
         self.confirmed.add(self._pending)
         self.errors.pop(self._pending, None)
-        self._had_retry = self._attempt >= 1
         self._consec_timeouts = 0
         self._event.set()
       elif message.startswith("操作过于频繁"):

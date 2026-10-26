@@ -2031,7 +2031,7 @@ def fetch_latest_server_live():
 
 
 WS_ACTIVE_SEM = asyncio.Semaphore(45)
-CDK_ACTIVE_SEM = asyncio.Semaphore(3)
+CDK_ACTIVE_SEM = asyncio.Semaphore(5)
 
 
 async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
@@ -2145,9 +2145,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   cdk_sem = globals().get("CDK_ACTIVE_SEM")
   if ws_sem:
     await ws_sem.acquire()
-  if cdk_sem:
-    await cdk_sem.acquire()
-  cdk_sem_held = bool(cdk_sem)
+  cdk_sem_held = False
   try:
     login_pkt = await build_login_packet()
     async with websockets.connect(ws_url, ssl=ctx, open_timeout=10, close_timeout=0.3, ping_interval=None, ping_timeout=None) as ws:
@@ -2234,6 +2232,11 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         except asyncio.TimeoutError:
           pass
         await asyncio.sleep(0.55)
+
+        # Chờ lấy vé vào luồng nạp Giftcode an toàn (tối đa 5 nick nạp code song song để không bị Funtap chặn IP)
+        if cdk_sem:
+          await cdk_sem.acquire()
+          cdk_sem_held = True
 
         total_codes = len(REROLL_GIFTCODES)
         try:
@@ -2365,6 +2368,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
           await asyncio.sleep(0.35)
           await ws.send(_pkt_msg(61))
           await asyncio.sleep(0.20)
+          await ws.send(_pkt_msg(999))
+          await ws.send(_pkt_msg(998))
           for item_id, qty in [(703, 2), (703, 1), (704, 2), (704, 1), (1012, 1)]:
             await ws.send(_pkt_msg(87, struct.pack(">ii", item_id, qty)))
             await asyncio.sleep(0.06)
@@ -2402,6 +2407,17 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
             await do_draw(camp_id, 1, 1)
 
         await asyncio.sleep(0.12)
+
+        # VÉT MẢNH LẦN CUỐI: Nếu tổng tướng 5★ vẫn < 11 (tránh tuyệt đối sót mảnh chưa mở hoặc thư trả chậm)
+        if len(heroes_5star) < 11 and not REROLL_STATE["stopRequested"]:
+          set_step("Bảo hiểm hòm thư: Nhận thư bù & Mở sạch mảnh 5★...")
+          await ws.send(_pkt_msg(64, b"\x01"))
+          await ws.send(_pkt_msg(64, b"\x02"))
+          await ws.send(_pkt_msg(61))
+          await asyncio.sleep(0.25)
+          await ws.send(_pkt_msg(999))
+          await ws.send(_pkt_msg(998))
+          await asyncio.sleep(0.15)
 
         # CẬP NHẬT LẠI ĐẾM TƯỚNG ĐỎ SAU KHI QUAY TAM GIỚI:
         red_counts = {h: heroes_5star.count(h) for h in ALL_RED_HEROES}
@@ -2759,6 +2775,9 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
 
     async def _run_pool():
       nonlocal srv_info, count
+      global WS_ACTIVE_SEM, CDK_ACTIVE_SEM
+      WS_ACTIVE_SEM = asyncio.Semaphore(45)
+      CDK_ACTIVE_SEM = asyncio.Semaphore(5)
       existing_names = set()
       used_funtap_ids = set()
       max_seen_seq = 0
@@ -2949,10 +2968,15 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                     REUSABLE_POOL[reg_info["username"]]["sid"] = cur_sid_int
                 if res:
                   break
-              if res and len(res.get("heroes5Star") or []) >= 1:
+              if res and len(res.get("heroes5Star") or []) >= 11 and len(res.get("confirmedCodes") or []) == len(REROLL_GIFTCODES):
                 break
 
-            if not res or len(res.get("heroes5Star") or []) == 0:
+            # BỘ LỌC CHẶN PASS GIẢ: Bắt buộc tài khoản hợp lệ phải có ít nhất 11 tướng 5★ và đủ 28/28 mã Giftcode
+            if not res or len(res.get("heroes5Star") or []) < 11 or len(res.get("confirmedCodes") or []) < len(REROLL_GIFTCODES):
+              if res:
+                disp_acc_chk = "***" if os.environ.get("GITHUB_ACTIONS", "").lower() == "true" else res.get("account")
+                code_stat_chk = res.get("codesClaimed", "0/0")
+                print(f"⚠️ [{disp_acc_chk}] Bỏ qua nick chưa đạt chuẩn ({len(res.get('heroes5Star') or [])} tướng 5★ < 11, code {code_stat_chk}) — Lọc sạch pass giả!", flush=True)
               continue
 
             completed_cnt += 1
