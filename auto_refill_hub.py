@@ -17,7 +17,7 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
 
 HUB_STATS_URL = "https://152-69-209-107.sslip.io/api/accounts/stats"
 FEEDER_REPO = "truongqv12/htd-account-feeder"
-THRESHOLD = 550
+THRESHOLD = 100000  # Luôn tạo để dành liên tục 24/7 (tích trữ tối đa 100,000 nick tươi trong kho Hub)
 COUNT_PER_JOB = 20  # 20 workers * 20 = 400 accounts per fast 1.5-min wave (auto-rotates Azure IP before rate limit)
 
 # Duy trì bơm nick liên tục 24/7 trên repo public mỗi khi kho xuống dưới THRESHOLD
@@ -35,9 +35,9 @@ def get_queue_stats():
         return -1, 0, 0
 
 def is_gh_running(q_size=999, last_trigger_ts=0.0):
-    # Nếu lần kích hoạt gần nhất đã qua > 105s mà kho dưới 280 nick,
-    # cho phép kích hoạt gối đầu đợt mới ngay lập tức (không đợi 1 runner chậm kéo dài)
-    if q_size < 280 and (time.time() - last_trigger_ts) > 105.0:
+    # Nếu lần kích hoạt gần nhất đã qua > 105s, cho phép kích hoạt gối đầu đợt mới ngay lập tức
+    # để tích trữ nick tươi liên tục không ngừng nghỉ (dù đang chạy tool hay tắt tool)
+    if (time.time() - last_trigger_ts) > 105.0:
         return False
     try:
         res = subprocess.run(

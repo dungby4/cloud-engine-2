@@ -20,9 +20,16 @@ ai_state.json
 anh_nick_trung/
 *.zip
 
-# Logs & temp files
+# Logs, temp files, dev archives & APK build artifacts
 *.log
+*.tmp
 scratch/
+dev_scripts/
+standalone_android_project/
+*.apk
+*.xapk
+*.idsig
+*.keystore
 cdn_cache/
 temp_*
 reshoot_*
