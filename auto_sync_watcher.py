@@ -154,7 +154,7 @@ def main() -> None:
                             import re as _re
                             import chay_web_auto as _cwa
                             m_sid = _re.search(r"(61\d{4})", server)
-                            sid_int = int(m_sid.group(1)) if m_sid else 610083
+                            sid_int = int(m_sid.group(1)) if m_sid else 610091
                             print(f"   📸 Tự động chạy chụp bù ảnh đội hình cho {acc} (SID: {sid_int})...", flush=True)
                             asyncio.run(_cwa._capture_winner_screenshot_async({
                                 "account": acc,

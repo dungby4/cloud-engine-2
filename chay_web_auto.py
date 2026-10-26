@@ -202,8 +202,17 @@ COMMAND_QUEUE = []
 
 # Complete Official Live Server List across all Clusters of Hắc Tây Du Funtap (Auto-synced from Funtap API)
 ALL_SERVERS_DATA = [
+    # Cụm 10: Bàn Tơ Động (S91 -> S100)
+    {"sid": "610091", "id": 91, "name": "[S91 Mới Nhất] Bàn Tơ Động-S1", "server": "wss://wss-funtap-xy.xinliugame.net:9117/", "status": "1", "recommend": 1, "cluster": "Bàn Tơ Động"},
     # Cụm 9: Hỏa Diệm Sơn (S81 -> S90)
-    {"sid": "610083", "id": 83, "name": "[S83 Mới Nhất] Hỏa Diệm Sơn-S3", "server": "wss://wss-funtap-xy.xinliugame.net:9109/", "status": "1", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
+    {"sid": "610090", "id": 90, "name": "[S90] Hỏa Diệm Sơn-S10", "server": "wss://wss-funtap-xy.xinliugame.net:9116/", "status": "2", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
+    {"sid": "610089", "id": 89, "name": "[S89] Hỏa Diệm Sơn-S9", "server": "wss://wss-funtap-xy.xinliugame.net:9115/", "status": "2", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
+    {"sid": "610088", "id": 88, "name": "[S88] Hỏa Diệm Sơn-S8", "server": "wss://wss-funtap-xy.xinliugame.net:9114/", "status": "2", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
+    {"sid": "610087", "id": 87, "name": "[S87] Hỏa Diệm Sơn-S7", "server": "wss://wss-funtap-xy.xinliugame.net:9113/", "status": "2", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
+    {"sid": "610086", "id": 86, "name": "[S86] Hỏa Diệm Sơn-S6", "server": "wss://wss-funtap-xy.xinliugame.net:9112/", "status": "2", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
+    {"sid": "610085", "id": 85, "name": "[S85] Nữ Nhi Quốc-S15", "server": "wss://wss-funtap-xy.xinliugame.net:9111/", "status": "2", "recommend": 0, "cluster": "Nữ Nhi Quốc"},
+    {"sid": "610084", "id": 84, "name": "[S84] Nữ Nhi Quốc-S14", "server": "wss://wss-funtap-xy.xinliugame.net:9110/", "status": "2", "recommend": 0, "cluster": "Nữ Nhi Quốc"},
+    {"sid": "610083", "id": 83, "name": "[S83] Hỏa Diệm Sơn-S3", "server": "wss://wss-funtap-xy.xinliugame.net:9109/", "status": "2", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
     {"sid": "610082", "id": 82, "name": "[S82] Hỏa Diệm Sơn-S2", "server": "wss://wss-funtap-xy.xinliugame.net:9108/", "status": "2", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
     {"sid": "610081", "id": 81, "name": "[S81] Hỏa Diệm Sơn-S1", "server": "wss://wss-funtap-xy.xinliugame.net:9107/", "status": "2", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
     # Cụm 8: Nữ Nhi Quốc (S71 -> S80)
@@ -1868,14 +1877,16 @@ def fetch_latest_server_live():
       "https://funtap-xy.ridvqqxa.com/game/getServerList2.php?lst=all&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
   ]
 
-  # Tailscale / máy ở nhà (localhost server_list trên máy truong-home)
+  # Tailscale / VPS fallback:
   tailscale_home_url = (
       APP_CONFIG.get("server_list_url")
       or APP_CONFIG.get("tailscale_server_url")
-      or "http://100.68.248.22:8088/api/server_list"
   )
   tailscale_urls = [
       tailscale_home_url,
+      "http://100.105.174.60:8088/api/server_list",
+      "http://100.68.248.22:8088/api/server_list",
+      "http://100.94.81.101:8088/api/server_list",
       f"http://127.0.0.1:{PORT}/api/server_list",
       "https://152-69-209-107.sslip.io/api/server_list",
   ]
@@ -1900,10 +1911,15 @@ def fetch_latest_server_live():
       if sid_e:
         live_map[sid_e] = dict(existing)
     for grp in arr:
-      for s in grp.get("all") or []:
-        sid_str = str(s.get("sid") or "")
-        if sid_str:
-          live_map[sid_str] = s
+      if isinstance(grp, dict):
+        if "sid" in grp:
+          sid_str = str(grp.get("sid") or "")
+          if sid_str:
+            live_map[sid_str] = grp
+        for s in grp.get("all") or []:
+          sid_str = str(s.get("sid") or "")
+          if sid_str:
+            live_map[sid_str] = s
     if not live_map:
       return None
     max_sid_int = max(int(k) for k in live_map.keys() if k.isdigit())
@@ -1918,8 +1934,12 @@ def fetch_latest_server_live():
           c_name = f"Ô Kê Quốc-S{srv_idx - 50}"
         elif srv_idx <= 70:
           c_name = f"Xa Trì Quốc-S{srv_idx - 60}"
-        else:
+        elif srv_idx <= 80:
           c_name = f"Nữ Nhi Quốc-S{srv_idx - 70}"
+        elif srv_idx <= 90:
+          c_name = f"Hỏa Diệm Sơn-S{srv_idx - 80}"
+        else:
+          c_name = f"Bàn Tơ Động-S{srv_idx - 90}"
         live_map[s_key] = {
             "sid": s_key,
             "id": srv_idx,
@@ -1942,7 +1962,16 @@ def fetch_latest_server_live():
         disp_name = f"[S{srv_id}] {clean_base}"
       else:
         disp_name = clean_base
-      cluster_name = clean_base.split("-")[0].strip() if "-" in clean_base else "Nữ Nhi Quốc"
+      if "-" in clean_base:
+        cluster_name = clean_base.split("-")[0].strip()
+      elif srv_id >= 91:
+        cluster_name = "Bàn Tơ Động"
+      elif srv_id >= 81:
+        cluster_name = "Hỏa Diệm Sơn"
+      elif srv_id >= 71:
+        cluster_name = "Nữ Nhi Quốc"
+      else:
+        cluster_name = "Xa Trì Quốc"
       ws_srv = str(item.get("server") or f"wss://wss-funtap-xy.xinliugame.net:{srv_id + 9026}/").replace("\\/", "/")
       new_list.append({
           "sid": sid_str,
@@ -2827,14 +2856,22 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
     if not found and str(sid_str).isdigit():
       srv_id = int(sid_str) - 610000 if int(sid_str) > 600000 else int(sid_str)
       cluster_idx = (srv_id - 1) % 10 + 1
+      if srv_id >= 91:
+        c_base = "Bàn Tơ Động"
+      elif srv_id >= 81:
+        c_base = "Hỏa Diệm Sơn"
+      elif srv_id >= 71:
+        c_base = "Nữ Nhi Quốc"
+      else:
+        c_base = "Xa Trì Quốc"
       srv_info = {
           "sid": str(610000 + srv_id),
           "id": srv_id,
-          "name": f"[S{srv_id}] Hỏa Diệm Sơn-S{cluster_idx}",
+          "name": f"[S{srv_id}] {c_base}-S{cluster_idx}",
           "server": f"wss://wss-funtap-xy.xinliugame.net:{srv_id + 9026}/",
           "status": "1",
           "recommend": 1,
-          "cluster": "Hỏa Diệm Sơn",
+          "cluster": c_base,
       }
 
   _save_reroll_files()
@@ -4263,12 +4300,13 @@ def main():
 
   print_cmd_reroll_dashboard()
 
-  tgt_sid = str(APP_CONFIG.get("target_server") or "610081")
-  active_srv = srv_info if 'srv_info' in locals() else newest_srv
-  for s in ALL_SERVERS_DATA:
-    if str(s["sid"]) == str(tgt_sid):
-      active_srv = s
-      break
+  tgt_sid = str(APP_CONFIG.get("target_server") or "latest")
+  active_srv = newest_srv
+  if tgt_sid not in ("latest", "auto", "0"):
+    for s in ALL_SERVERS_DATA:
+      if str(s["sid"]) == str(tgt_sid):
+        active_srv = s
+        break
 
   if "--no-auto-reroll" not in sys.argv:
     print(f"\n🚀 ĐANG TỰ ĐỘNG CHẠY XUYÊN SUỐT {PARALLEL_REROLL_WORKERS} LUỒNG SIÊU TỐC (TIỀN TỐ: '{ACCOUNT_PREFIX}') TẠI {active_srv['name']} ({active_srv['sid']})...")
