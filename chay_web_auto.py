@@ -2083,8 +2083,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   draw_ev = asyncio.Event()
   claims = GiftcodeClaims()
   if getattr(claims, "timeout", 0.0) >= 1.0:
-    claims.min_interval = 0.38
-    claims.timeout = 2.0
+    claims.min_interval = 0.45
+    claims.timeout = 2.85
     claims.reconnect_on_timeout = False
     claims.max_attempts = 3
   confirmed_codes = claims.confirmed
@@ -2177,6 +2177,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
           await asyncio.wait_for(login_ev.wait(), timeout=0.65)
         except asyncio.TimeoutError:
           pass
+        await ws.send(_pkt_msg(91, struct.pack(">i", 1)))
+        await ws.send(_pkt_msg(598, struct.pack(">i", 1)))
         await ws.send(_pkt_msg(64, b"\x01"))
         await asyncio.sleep(0.55)
 
@@ -2243,7 +2245,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         except Exception:
           pass
 
-        for _sweep_round in range(3):
+        for _sweep_round in range(5):
           missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
           if not missing_codes or REROLL_STATE["stopRequested"]:
             break
@@ -2253,6 +2255,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
           except Exception:
             await asyncio.sleep(0.20)
           try:
+            claims.timeout = 3.2
             claims.max_attempts = 3
             await claims.claim_all(
                 missing_codes, send_code, reconnect_for_codes,
