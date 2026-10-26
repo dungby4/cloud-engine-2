@@ -2718,6 +2718,9 @@ async def _capture_winner_screenshot_async(res):
     try:
       import subprocess
       out_path = os.path.join(DIRECTORY, "anh_nick_trung", f"{acc_name}_S{srv_num}.png")
+      run_kwargs = {}
+      if sys.platform == "win32":
+        run_kwargs["creationflags"] = 0x00004000  # BELOW_NORMAL_PRIORITY_CLASS
       cp = await asyncio.to_thread(
           subprocess.run,
           [sys.executable, script_path, "--acc", acc_name, "--fid", fid, "--sid", str(sid), "--port", str(PORT)],
@@ -2726,6 +2729,7 @@ async def _capture_winner_screenshot_async(res):
           encoding="utf-8",
           errors="ignore",
           timeout=120.0,
+          **run_kwargs,
       )
       if cp.stdout:
         for line in cp.stdout.splitlines():
@@ -2964,7 +2968,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
     async def _run_pool():
       nonlocal srv_info, count
       global WS_ACTIVE_SEM, CDK_ACTIVE_SEM
-      ws_limit = 5 if PARALLEL_REROLL_WORKERS <= 10 else min(10, max(6, PARALLEL_REROLL_WORKERS // 2))
+      ws_limit = 5 if PARALLEL_REROLL_WORKERS <= 10 else min(14, max(6, PARALLEL_REROLL_WORKERS // 2))
       WS_ACTIVE_SEM = asyncio.Semaphore(ws_limit)
       CDK_ACTIVE_SEM = None
       existing_names = set()
