@@ -2963,7 +2963,8 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
     async def _run_pool():
       nonlocal srv_info, count
       global WS_ACTIVE_SEM, CDK_ACTIVE_SEM
-      WS_ACTIVE_SEM = asyncio.Semaphore(5)
+      ws_limit = 5 if PARALLEL_REROLL_WORKERS <= 10 else min(10, max(6, PARALLEL_REROLL_WORKERS // 2))
+      WS_ACTIVE_SEM = asyncio.Semaphore(ws_limit)
       CDK_ACTIVE_SEM = None
       existing_names = set()
       used_funtap_ids = set()
