@@ -2078,10 +2078,11 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   item_use_ev = asyncio.Event()
   draw_ev = asyncio.Event()
   claims = GiftcodeClaims()
-  if getattr(claims, "max_attempts", 1) == 1:
+  if getattr(claims, "timeout", 0.0) >= 1.0:
     claims.min_interval = 0.36
-    claims.timeout = 1.55
+    claims.timeout = 1.65
     claims.reconnect_on_timeout = False
+    claims.max_attempts = 1
   confirmed_codes = claims.confirmed
 
   def record_packet(resp):
