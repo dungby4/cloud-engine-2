@@ -2028,7 +2028,7 @@ def fetch_latest_server_live():
 
 
 WS_ACTIVE_SEM = asyncio.Semaphore(45)
-CDK_ACTIVE_SEM = asyncio.Semaphore(5)
+CDK_ACTIVE_SEM = asyncio.Semaphore(3)
 
 
 async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
@@ -2080,10 +2080,10 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   draw_ev = asyncio.Event()
   claims = GiftcodeClaims()
   if getattr(claims, "timeout", 0.0) >= 1.0:
-    claims.min_interval = 0.35
-    claims.timeout = 1.65
+    claims.min_interval = 0.36
+    claims.timeout = 1.55
     claims.reconnect_on_timeout = False
-    claims.max_attempts = 1
+    claims.max_attempts = 2
   confirmed_codes = claims.confirmed
 
   def record_packet(resp):
@@ -2227,11 +2227,11 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
           await asyncio.wait_for(mail_query_ev.wait(), timeout=0.35)
         except asyncio.TimeoutError:
           pass
-        await asyncio.sleep(0.08)
+        await asyncio.sleep(0.55)
 
         total_codes = len(REROLL_GIFTCODES)
         try:
-          claims.max_attempts = getattr(claims, "max_attempts", 1)
+          claims.max_attempts = 2
           await claims.claim_all(
               REROLL_GIFTCODES, send_code, reconnect_for_codes,
               lambda: REROLL_STATE["stopRequested"], code_progress,
@@ -2239,7 +2239,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         except Exception:
           pass
 
-        for _sweep_round in range(2):
+        for _sweep_round in range(3):
           missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
           if not missing_codes or REROLL_STATE["stopRequested"]:
             break
@@ -2247,9 +2247,9 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
             await reconnect_for_codes()
             claims.new_connection()
           except Exception:
-            await asyncio.sleep(0.10)
+            await asyncio.sleep(0.15)
           try:
-            claims.max_attempts = getattr(claims, "max_attempts", 1)
+            claims.max_attempts = 2
             await claims.claim_all(
                 missing_codes, send_code, reconnect_for_codes,
                 lambda: REROLL_STATE["stopRequested"], code_progress,
