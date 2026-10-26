@@ -1886,8 +1886,6 @@ def fetch_latest_server_live():
       tailscale_home_url,
       "http://100.105.174.60:8088/api/server_list",
       "http://100.68.248.22:8088/api/server_list",
-      "http://100.94.81.101:8088/api/server_list",
-      f"http://127.0.0.1:{PORT}/api/server_list",
       "https://152-69-209-107.sslip.io/api/server_list",
   ]
   seen_ts = set()
@@ -2450,265 +2448,37 @@ SCREENSHOT_SEMAPHORE = None
 
 
 async def _capture_winner_screenshot_async(res):
-  """Tự động vào mục Thần Tướng, sắp xếp Dương Tiễn / Ngộ Không / Na Tra / Đường Tam Tạng lên Hàng 1 và chụp ảnh bằng chứng."""
+  """Tự động gọi capture_winner.py trong tiến trình con độc lập để chạy tân thủ Lv.5+ và chụp ảnh bằng chứng (100% không nghẽn luồng cày)."""
   global SCREENSHOT_SEMAPHORE
   if SCREENSHOT_SEMAPHORE is None:
     SCREENSHOT_SEMAPHORE = asyncio.Semaphore(1)
   async with SCREENSHOT_SEMAPHORE:
-    try:
-      from playwright.async_api import async_playwright
-    except ImportError:
-      print("⚠️ [Screenshot Error] Thiếu thư viện Playwright trên máy này! Vui lòng chạy: pip install playwright && playwright install chromium", flush=True)
-      return ""
     acc_name = str(res.get("account") or "nick")
     fid = str(res.get("funtapId") or "")
     sid = int(res.get("serverId") or 610070)
     srv_num = sid - 610000 if sid > 610000 else sid
     rel_path = f"anh_nick_trung/{acc_name}_S{srv_num}.png"
-    out_path = os.path.join(DIRECTORY, "anh_nick_trung", f"{acc_name}_S{srv_num}.png")
+    script_path = os.path.join(DIRECTORY, "capture_winner.py")
 
-    exe_path = os.environ.get("PLAYWRIGHT_CHROME_PATH")
-    if not exe_path and sys.platform == "win32":
-      chrome_paths = [
-          r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-          r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-          r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-          r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-      ]
-      exe_path = next((p for p in chrome_paths if os.path.exists(p)), None)
-    elif not exe_path and (sys.platform.startswith("linux") or sys.platform == "darwin"):
-      linux_paths = [
-          "/usr/bin/google-chrome",
-          "/usr/bin/google-chrome-stable",
-          "/usr/bin/chromium",
-          "/usr/bin/chromium-browser",
-          "/snap/bin/chromium",
-          "/usr/bin/chrome",
-          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-      ]
-      exe_path = next((p for p in linux_paths if os.path.exists(p)), None)
     try:
-      os.makedirs(os.path.dirname(out_path), exist_ok=True)
-      async with async_playwright() as p:
-        browser_args = [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--mute-audio",
-            "--enable-webgl",
-            "--ignore-gpu-blocklist",
-            "--disable-gpu-vsync",
-        ]
-        if sys.platform.startswith("linux"):
-          browser_args.extend(["--use-gl=angle", "--use-angle=swiftshader"])
-        launch_kwargs = {
-            "headless": True,
-            "args": browser_args,
-        }
-        if exe_path:
-          launch_kwargs["executable_path"] = exe_path
-        browser = await p.chromium.launch(**launch_kwargs)
-        page = await browser.new_page(viewport={"width": 720, "height": 1280})
-        url = f"http://localhost:{PORT}/play_frame?acc={fid}&sid={sid}&direct=1"
-        await page.goto(url, wait_until="domcontentloaded", timeout=25000)
-        for _ in range(45):
-          await asyncio.sleep(0.5)
-          cnt = await page.evaluate("() => (window.tt && window.tt.heros) ? window.tt.heros.length : 0")
-          if cnt > 0:
-            break
-        await asyncio.sleep(1.0)
-
-        # 1. TỰ ĐỘNG CHẠY NHIỆM VỤ TÂN THỦ & VƯỢT ẢI CHÍNH LÊN CẤP CHO NICK (Lv.1 -> Lv.5+)
-        cur_lv = 1
-        try:
-          init_lv = await page.evaluate("() => window.H && window.H.data ? (window.H.data.lv || window.H.data.level || 1) : 1")
-          cur_lv = init_lv
-          if init_lv < 5:
-            print(f"🎮 [{acc_name}] Đang tự động chạy nhiệm vụ tân thủ / vượt ải chính (Lv.{init_lv} -> Lv.5+)...", flush=True)
-            await page.evaluate("""() => {
-              if (window.HacTayDuAuto) {
-                try { window.HacTayDuAuto.cleanSkipTutorialNow(); } catch(e) {}
-                if (window.HacTayDuAuto.aiOptimizePowerAndTeam) {
-                  try { window.HacTayDuAuto.aiOptimizePowerAndTeam(true); } catch(e) {}
-                }
-                window.HacTayDuAuto.autoCampaign = true;
-                window.HacTayDuAuto.autoSkip = true;
-                if (window.HacTayDuAuto.setSpeed) window.HacTayDuAuto.setSpeed(5);
-              }
-              try {
-                if (typeof Ri !== 'undefined' && Ri.getInstance && Ri.getInstance().inStage()) {
-                  Ri.getInstance().onFight();
-                } else if (typeof Et !== 'undefined' && Et.show) {
-                  Et.show(1, '');
-                } else if (typeof n !== 'undefined' && n.CG_COMBAT_READY) {
-                  n.CG_COMBAT_READY(1, '', 0, 0);
-                }
-              } catch(e) {}
-            }""")
-
-            for sec in range(1, 45):
-              await asyncio.sleep(1.0)
-              cur_lv = await page.evaluate("() => window.H && window.H.data ? (window.H.data.lv || window.H.data.level || 1) : 1")
-              in_combat = await page.evaluate("() => !!(typeof De !== 'undefined' && De && De.isInCombat)")
-              if cur_lv >= 5 and not in_combat:
-                print(f"✅ [{acc_name}] Đã hoàn thành nhiệm vụ tân thủ! Đạt Lv.{cur_lv}", flush=True)
-                break
-
-              # Thúc đẩy hoàn thành chiến đấu & xử lý bảng kết quả / popup hướng dẫn
-              await page.evaluate("""() => {
-                try {
-                  if (typeof De !== 'undefined' && De && De.isInCombat) {
-                    De._pendingSkip = true;
-                    if (De.finishData) {
-                      De.endFlag = false;
-                      try { De.onEnd(); } catch(e) {}
-                    }
-                  }
-                } catch(e) {}
-
-                try {
-                  if (typeof qe !== 'undefined' && qe.getInstance && qe.getInstance().inStage()) {
-                    try { qe.getInstance().onNextCopy(); } catch(e) {
-                      try { qe.getInstance().close(); } catch(e2) {}
-                    }
-                  }
-                } catch(e) {}
-
-                try {
-                  if (window.HacTayDuAuto && window.HacTayDuAuto.cleanSkipTutorialNow) {
-                    window.HacTayDuAuto.cleanSkipTutorialNow();
-                  }
-                } catch(e) {}
-              }""")
-
-              if sec % 2 == 0 and not in_combat and cur_lv < 5:
-                await page.evaluate("""() => {
-                  try {
-                    if (typeof Ri !== 'undefined' && Ri.getInstance && Ri.getInstance().inStage()) {
-                      Ri.getInstance().onFight();
-                    } else if (typeof Et !== 'undefined' && Et.show) {
-                      Et.show(1, '');
-                    } else if (typeof n !== 'undefined' && n.CG_COMBAT_READY) {
-                      n.CG_COMBAT_READY(1, '', 0, 0);
-                    }
-                  } catch(e) {}
-                }""")
-                try:
-                  await page.mouse.click(360, 640)
-                except Exception:
-                  pass
-
-            # Dọn dẹp sau khi hoàn thành tân thủ
-            await page.evaluate("""() => {
-              if (window.HacTayDuAuto) {
-                window.HacTayDuAuto.autoCampaign = false;
-                try { window.HacTayDuAuto.cleanSkipTutorialNow(); } catch(e) {}
-              }
-              if (window.Laya && window.Laya.Dialog) {
-                try { window.Laya.Dialog.closeAll(); } catch(e) {}
-              }
-              if (typeof qe !== 'undefined' && qe.getInstance && qe.getInstance().inStage()) {
-                try { qe.getInstance().close(); } catch(e) {}
-              }
-            }""")
-            await asyncio.sleep(1.0)
-          else:
-            print(f"ℹ️ [{acc_name}] Tài khoản đã đạt Lv.{init_lv}, không cần chạy lại tân thủ.", flush=True)
-          res["level"] = cur_lv
-        except Exception as err_tan_thu:
-          print(f"⚠️ [{acc_name}] Lỗi khi chạy tân thủ: {err_tan_thu}", flush=True)
-
-        # 2. Chờ thanh điều hướng chính (bt) của game sẵn sàng (quét nhanh 0.5s)
-        for sec in range(50):
-          await asyncio.sleep(0.5)
-          ready = await page.evaluate("() => typeof bt !== 'undefined' && bt.getInstance && bt.getInstance().inStage && bt.getInstance().inStage()")
-          if ready:
-            break
-
-        # 3. Cấu hình sort ưu tiên tướng 2x & mở tab Thần Tướng
-        await page.evaluate("""() => {
-          if (typeof at !== 'undefined') at.data = null;
-          if (typeof De !== 'undefined') De.isInCombat = false;
-          if (window.tt) {
-            var priorityWeight = function(h) {
-              if (!h) return 0;
-              var reds = [
-                "Dương Tiễn", "Ngộ Không", "Na Tra", "Lý Tịnh", "Đường Tam Tạng", "Đường Tăng",
-                "Trấn Nguyên", "Ngưu Ma", "Hồng Hài Nhi", "Hàng Long", "Trư Bát Giới",
-                "Hằng Nga", "Thiết Phiến", "Hoàng My", "Ngọc Diện"
-              ];
-              var hName = h.name || "";
-              for (var i = 0; i < reds.length; i++) {
-                if (hName.indexOf(reds[i]) >= 0) return 100000 - i * 500;
-              }
-              if (h.id === 1014) return 100000;
-              if (h.id === 2014) return 95000;
-              if (h.id === 3014) return 90000;
-              if (h.id === 3010) return 80000;
-              return (h.star || 0) * 1000 + (h.lv || 1);
-            };
-            window.tt.combatheroSort = function(a, b) {
-              return priorityWeight(b) - priorityWeight(a);
-            };
-          }
-          if (typeof bt !== 'undefined' && bt.getInstance) {
-            try { bt.getInstance().onTab(1); } catch(e) {}
-          }
-        }""")
-
-        # 3. Chờ hero panel mount trên stage (quét nhanh 0.5s)
-        for s in range(30):
-          await asyncio.sleep(0.5)
-          inst_ready = await page.evaluate("() => typeof si !== 'undefined' && si.getInstance && si.getInstance().inStage && si.getInstance().inStage()")
-          if inst_ready:
-            break
-
-        # 4. Chờ tải tranh vẽ tướng & áp dụng sort
-        await asyncio.sleep(2.5)
-        await page.evaluate("""() => {
-          try {
-            if (typeof si !== 'undefined' && si.getInstance && si.getInstance().setList) {
-              si.getInstance().setList(0, 0);
-            }
-          } catch(e) {}
-          if (window.HacTayDuAuto) {
-            if (window.HacTayDuAuto.layaMenu) window.HacTayDuAuto.layaMenu.visible = false;
-            if (window.HacTayDuAuto.layaBtn) window.HacTayDuAuto.layaBtn.visible = false;
-          }
-        }""")
-        await asyncio.sleep(0.8)
-        await page.screenshot(path=out_path)
-
-        # Tự động nén ảnh siêu gọn bằng Pillow (Resize 540p + JPEG q=72) để tối ưu dung lượng và gửi đồng bộ siêu nhanh
-        try:
-          from PIL import Image
-          with Image.open(out_path) as im:
-            if im.mode in ("RGBA", "LA", "P"):
-              im_rgb = im.convert("RGB")
-            else:
-              im_rgb = im
-            orig_w, orig_h = im_rgb.size
-            max_w = 540
-            if orig_w > max_w:
-              new_h = int(orig_h * (max_w / orig_w))
-              im_resized = im_rgb.resize((max_w, new_h), Image.Resampling.LANCZOS)
-            else:
-              im_resized = im_rgb
-            jpg_path = os.path.splitext(out_path)[0] + ".jpg"
-            im_resized.save(jpg_path, format="JPEG", quality=72, optimize=True, progressive=True)
-            p_im = im_resized.convert("P", palette=Image.ADAPTIVE, colors=256)
-            p_im.save(out_path, format="PNG", optimize=True)
-            print(f"📸 [{acc_name}] Đã nén ảnh bằng chứng: JPG={os.path.getsize(jpg_path)//1024} KB | PNG={os.path.getsize(out_path)//1024} KB", flush=True)
-        except Exception as e_compress:
-          print(f"⚠️ [{acc_name}] Không thể nén ảnh: {e_compress}", flush=True)
-
-        try:
-          await asyncio.wait_for(browser.close(), timeout=4.0)
-        except Exception:
-          pass
-        return rel_path
+      proc = await asyncio.create_subprocess_exec(
+          sys.executable, script_path,
+          "--acc", acc_name,
+          "--fid", fid,
+          "--sid", str(sid),
+          "--port", str(PORT),
+          stdout=asyncio.subprocess.PIPE,
+          stderr=asyncio.subprocess.PIPE,
+      )
+      stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120.0)
+      out_txt = stdout.decode("utf-8", errors="ignore")
+      if out_txt:
+        for line in out_txt.splitlines():
+          if line.strip():
+            print(f"   [SnapSub] {line.strip()}", flush=True)
+      return rel_path
     except Exception as e:
-      print(f"⚠️ [Screenshot Error] Không thể chụp ảnh cho {acc_name}: {e}", flush=True)
+      print(f"⚠️ [Screenshot Subprocess] Lỗi chụp ảnh {acc_name}: {e}", flush=True)
       return ""
 
 
