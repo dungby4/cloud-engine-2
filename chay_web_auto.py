@@ -204,7 +204,8 @@ COMMAND_QUEUE = []
 # Complete Official Live Server List across all Clusters of Hắc Tây Du Funtap (Auto-synced from Funtap API)
 ALL_SERVERS_DATA = [
     # Cụm 10: Bàn Tơ Động (S91 -> S100)
-    {"sid": "610093", "id": 93, "name": "[S93 Mới Nhất] Bàn Tơ Động-S3", "server": "wss://wss-funtap-xy.xinliugame.net:9119/", "status": "1", "recommend": 1, "cluster": "Bàn Tơ Động"},
+    {"sid": "610094", "id": 94, "name": "[S94 Mới Nhất] Bàn Tơ Động-S4", "server": "wss://wss-funtap-xy.xinliugame.net:9120/", "status": "1", "recommend": 1, "cluster": "Bàn Tơ Động"},
+    {"sid": "610093", "id": 93, "name": "[S93] Bàn Tơ Động-S3", "server": "wss://wss-funtap-xy.xinliugame.net:9119/", "status": "2", "recommend": 0, "cluster": "Bàn Tơ Động"},
     {"sid": "610092", "id": 92, "name": "[S92] Bàn Tơ Động-S2", "server": "wss://wss-funtap-xy.xinliugame.net:9118/", "status": "2", "recommend": 0, "cluster": "Bàn Tơ Động"},
     {"sid": "610091", "id": 91, "name": "[S91] Bàn Tơ Động-S1", "server": "wss://wss-funtap-xy.xinliugame.net:9117/", "status": "2", "recommend": 0, "cluster": "Bàn Tơ Động"},
     # Cụm 9: Hỏa Diệm Sơn (S81 -> S90)

@@ -44,7 +44,7 @@ async def capture_winner_screenshot(acc_name, fid, sid, port=8088):
           "--enable-webgl",
           "--ignore-gpu-blocklist",
           "--disable-gpu-vsync",
-      ],
+      ] + (["--use-gl=angle", "--use-angle=swiftshader"] if sys.platform.startswith("linux") else []),
   }
   if exe_path:
     launch_kwargs["executable_path"] = exe_path
