@@ -2028,7 +2028,7 @@ def fetch_latest_server_live():
 
 
 WS_ACTIVE_SEM = asyncio.Semaphore(45)
-CDK_ACTIVE_SEM = asyncio.Semaphore(4)
+CDK_ACTIVE_SEM = asyncio.Semaphore(5)
 
 
 async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
@@ -2139,8 +2139,12 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         dtt_count += 1
 
   ws_sem = globals().get("WS_ACTIVE_SEM")
+  cdk_sem = globals().get("CDK_ACTIVE_SEM")
   if ws_sem:
     await ws_sem.acquire()
+  if cdk_sem:
+    await cdk_sem.acquire()
+  cdk_sem_held = bool(cdk_sem)
   try:
     login_pkt = await build_login_packet()
     async with websockets.connect(ws_url, ssl=ctx, open_timeout=10, close_timeout=0.3, ping_interval=None, ping_timeout=None) as ws:
@@ -2226,18 +2230,14 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         await asyncio.sleep(0.08)
 
         total_codes = len(REROLL_GIFTCODES)
-        cdk_sem = globals().get("CDK_ACTIVE_SEM")
-        if cdk_sem:
-          await cdk_sem.acquire()
         try:
           claims.max_attempts = getattr(claims, "max_attempts", 1)
           await claims.claim_all(
               REROLL_GIFTCODES, send_code, reconnect_for_codes,
               lambda: REROLL_STATE["stopRequested"], code_progress,
           )
-        finally:
-          if cdk_sem:
-            cdk_sem.release()
+        except Exception:
+          pass
 
         for _sweep_round in range(2):
           missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
@@ -2248,17 +2248,19 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
             claims.new_connection()
           except Exception:
             await asyncio.sleep(0.10)
-          if cdk_sem:
-            await cdk_sem.acquire()
           try:
             claims.max_attempts = getattr(claims, "max_attempts", 1)
             await claims.claim_all(
                 missing_codes, send_code, reconnect_for_codes,
                 lambda: REROLL_STATE["stopRequested"], code_progress,
             )
-          finally:
-            if cdk_sem:
-              cdk_sem.release()
+          except Exception:
+            pass
+
+        # Giải phóng CDK Semaphore ngay lập tức để luồng tiếp theo được nhập Giftcode!
+        if cdk_sem_held:
+          cdk_sem.release()
+          cdk_sem_held = False
 
         if claims.needs_reconnect and not REROLL_STATE["stopRequested"]:
           await reconnect_for_codes()
@@ -2439,6 +2441,9 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   except Exception as e:
     set_step(f"Lỗi kết nối: {e}")
   finally:
+    if cdk_sem_held:
+      cdk_sem.release()
+      cdk_sem_held = False
     if ws_sem:
       ws_sem.release()
 
