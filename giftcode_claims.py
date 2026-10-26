@@ -55,7 +55,7 @@ class GiftcodeClaims:
         return
       message = packet[14:].decode("utf-8", errors="replace")
       self._last_notice = message
-      if message.startswith("已达到领取上限"):
+      if message.startswith("已达到领取上限") or "请前往信件查收" in message or "急急如律令" in message:
         # If the previous code required retries and we are on attempt 0 of a new code,
         # this notice is a trailing duplicate reply from the previous code's retry.
         if self._attempt == 0 and self._had_retry:
@@ -63,6 +63,7 @@ class GiftcodeClaims:
         self.confirmed.add(self._pending)
         self.errors.pop(self._pending, None)
         self._had_retry = self._attempt >= 1
+        self._consec_timeouts = 0
         self._event.set()
       elif message.startswith("操作过于频繁"):
         # The client's string formatter substitutes || arguments into {1}.

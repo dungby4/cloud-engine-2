@@ -37,10 +37,9 @@ class GiftcodePacketTests(unittest.TestCase):
     self.assertFalse(self.claims._event.is_set())
     self.assertEqual(self.claims.confirmed, set())
 
-  def test_success_notice_waits_for_ack(self):
+  def test_success_notice_confirms_code(self):
     self.claims.record_packet(notice("急急如律令，兑！请前往信件查收"))
-    self.assertFalse(self.claims._event.is_set())
-    self.claims.record_packet(ACK)
+    self.assertTrue(self.claims._event.is_set())
     self.assertEqual(self.claims.confirmed, {"FIRST"})
 
   def test_already_claimed_is_confirmed_without_ack(self):
