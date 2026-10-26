@@ -204,7 +204,8 @@ COMMAND_QUEUE = []
 # Complete Official Live Server List across all Clusters of Hắc Tây Du Funtap (Auto-synced from Funtap API)
 ALL_SERVERS_DATA = [
     # Cụm 10: Bàn Tơ Động (S91 -> S100)
-    {"sid": "610092", "id": 92, "name": "[S92 Mới Nhất] Bàn Tơ Động-S2", "server": "wss://wss-funtap-xy.xinliugame.net:9118/", "status": "1", "recommend": 1, "cluster": "Bàn Tơ Động"},
+    {"sid": "610093", "id": 93, "name": "[S93 Mới Nhất] Bàn Tơ Động-S3", "server": "wss://wss-funtap-xy.xinliugame.net:9119/", "status": "1", "recommend": 1, "cluster": "Bàn Tơ Động"},
+    {"sid": "610092", "id": 92, "name": "[S92] Bàn Tơ Động-S2", "server": "wss://wss-funtap-xy.xinliugame.net:9118/", "status": "2", "recommend": 0, "cluster": "Bàn Tơ Động"},
     {"sid": "610091", "id": 91, "name": "[S91] Bàn Tơ Động-S1", "server": "wss://wss-funtap-xy.xinliugame.net:9117/", "status": "2", "recommend": 0, "cluster": "Bàn Tơ Động"},
     # Cụm 9: Hỏa Diệm Sơn (S81 -> S90)
     {"sid": "610090", "id": 90, "name": "[S90] Hỏa Diệm Sơn-S10", "server": "wss://wss-funtap-xy.xinliugame.net:9116/", "status": "2", "recommend": 0, "cluster": "Hỏa Diệm Sơn"},
@@ -1873,9 +1874,11 @@ def fetch_latest_server_live():
   Nếu gọi đến Funtap lỗi (hoặc rỗng/chặn), tự động fallback gọi qua Tailscale (máy ở nhà / localhost list server).
   """
   funtap_urls = [
+      "https://funtap-xy.ridvqqxa.com/game/getServerList.php?lst=all&ac=720524013&plt=android&v=1&platform=funtap&appid=android",
+      "https://funtap-xy.xinliugame.net/game/getServerList.php?lst=all&ac=720524013&plt=android&v=1&platform=funtap&appid=android",
+      "https://funtap-xy.ridvqqxa.com/game/getServerList.php?lst=all&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
+      "https://funtap-xy.xinliugame.net/game/getServerList.php?lst=all&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
       "https://funtap-xy.xinliugame.net/game/getServerList2.php?lst=new&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
-      "https://funtap-xy.xinliugame.net/game/getServerList2.php?lst=all&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
-      "https://funtap-xy.ridvqqxa.com/game/getServerList2.php?lst=new&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
       "https://funtap-xy.ridvqqxa.com/game/getServerList2.php?lst=all&ac=720524013&plt=ios&v=1&platform=funtap&appid=ios",
   ]
 
@@ -2864,13 +2867,17 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
             if not REROLL_STATE["running"] or REROLL_STATE["stopRequested"]:
               break
             step_now = REROLL_STATE.get("stepMsg") or ""
-          # Tự động quét Server mới mỗi 30 giây ngay trong lúc đang chạy (chỉ khi chạy chế độ latest/auto)!
-          if auto_latest_mode and time.time() - last_srv_check_ts[0] >= 30.0:
+          # Tự động quét Server mới mỗi 15 giây ngay trong lúc đang chạy (chỉ khi chạy chế độ latest/auto)!
+          if auto_latest_mode and time.time() - last_srv_check_ts[0] >= 15.0:
             last_srv_check_ts[0] = time.time()
             try:
               latest_cand = await asyncio.to_thread(fetch_latest_server_live)
               if latest_cand and int(latest_cand.get("sid") or 0) > int(srv_info.get("sid") or 0):
                 srv_info = latest_cand
+                with REROLL_LOCK:
+                  REROLL_STATE["serverId"] = int(srv_info["sid"])
+                  REROLL_STATE["serverName"] = srv_info["name"]
+                  REROLL_STATE["wsUrl"] = srv_info["server"]
                 print(
                     f"\n🆕 [AUTO-MIGRATE] PHÁT HIỆN SERVER MỚI MỞ: {srv_info['name']} ({srv_info['sid']}) "
                     f"=> Tự động chuyển toàn bộ {PARALLEL_REROLL_WORKERS} luồng sang cày tại {srv_info['name']}!\n",
