@@ -52,6 +52,7 @@ if sys.platform == "win32":
   except Exception:
     pass
 
+from contextlib import nullcontext
 import threading
 import time
 import urllib.error
@@ -2025,8 +2026,8 @@ def fetch_latest_server_live():
   return ALL_SERVERS_DATA[0]
 
 
-WS_ACTIVE_SEM = asyncio.Semaphore(16)
-CDK_ACTIVE_SEM = asyncio.Semaphore(3)
+WS_ACTIVE_SEM = asyncio.Semaphore(45)
+CDK_ACTIVE_SEM = asyncio.Semaphore(5)
 
 
 async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
@@ -2119,6 +2120,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
     for h in _parse_hero_packet(resp):
       if h["star"] >= 5:
         heroes_5star.append(h["name"])
+        item_use_ev.set()
       if h["id"] == 1014 or "Dương Tiễn" in h["name"] or h.get("name_cn") == "杨戬":
         dt_count += 1
       if h["id"] == 2014 or "Ngộ Không" in h["name"] or h.get("name_cn") == "孙悟空":
@@ -2130,7 +2132,9 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
       if h.get("id") == 3010 or "Đường Tam Tạng" in h["name"] or "Đường Tăng" in h["name"] or h.get("name_cn") in ("唐三藏", "唐玄奘", "唐僧"):
         dtt_count += 1
 
-  await WS_ACTIVE_SEM.acquire()
+  ws_sem = globals().get("WS_ACTIVE_SEM")
+  if ws_sem:
+    await ws_sem.acquire()
   try:
     login_pkt = await build_login_packet()
     async with websockets.connect(ws_url, ssl=ctx, open_timeout=10, close_timeout=0.3, ping_interval=None, ping_timeout=None) as ws:
@@ -2216,7 +2220,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         await asyncio.sleep(0.08)
 
         total_codes = len(REROLL_GIFTCODES)
-        async with CDK_ACTIVE_SEM:
+        cdk_sem = globals().get("CDK_ACTIVE_SEM")
+        async with (cdk_sem if cdk_sem else nullcontext()):
           claims.max_attempts = 1
           await claims.claim_all(
               REROLL_GIFTCODES, send_code, reconnect_for_codes,
@@ -2241,7 +2246,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
             claims.new_connection()
 
         # Give the final giftcode mail time to arrive in mailbox
-        await asyncio.sleep(0.95)
+        await asyncio.sleep(0.70)
 
         codes_stat = f"{len(confirmed_codes)}/{total_codes}"
         set_step(f"Đã xác nhận {codes_stat} Code ➜ Nhận thư & Mở 250 mảnh 5★...")
@@ -2250,35 +2255,51 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         await ws.send(_pkt_msg(64, b"\x01"))
         await ws.send(_pkt_msg(64, b"\x02"))
         await ws.send(_pkt_msg(61))
-        await asyncio.sleep(0.35)
+        await asyncio.sleep(0.28)
         await ws.send(_pkt_msg(64, b"\x01"))
         await ws.send(_pkt_msg(64, b"\x02"))
         await ws.send(_pkt_msg(61))
-        await asyncio.sleep(0.25)
+        await asyncio.sleep(0.20)
 
-        # Mở 250 mảnh 5★: 100 mảnh 703 (2 tướng) + 100 mảnh 704 Core SSR (2 tướng) + 50 mảnh 1012 (1 tướng)
-        for item_id, qty in [(703, 2), (703, 1), (704, 2), (704, 1), (1012, 1)]:
-          item_use_ev.clear()
-          await ws.send(_pkt_msg(87, struct.pack(">ii", item_id, qty)))
-          try:
-            await asyncio.wait_for(item_use_ev.wait(), timeout=0.14)
-          except asyncio.TimeoutError:
-            pass
-          await asyncio.sleep(0.05)
-        await asyncio.sleep(0.10)
+        # Mở 250 mảnh 5★: Bắn Opcode 999 (CG_SUIPIAN_HERO_ONEKEY) ghép sạch mảnh 1 chạm cực nhanh từ APK
+        item_use_ev.clear()
+        await ws.send(_pkt_msg(999))
+        await ws.send(_pkt_msg(998))
+        try:
+          await asyncio.wait_for(item_use_ev.wait(), timeout=0.18)
+        except asyncio.TimeoutError:
+          pass
+
+        # Lưới an toàn: Nếu chưa đủ 6 tướng (5 từ mảnh + 1 Tiểu Bạch Long), mở bù theo từng ID
+        if len(heroes_5star) < 6:
+          for item_id, qty in [(703, 2), (703, 1), (704, 2), (704, 1), (1012, 1)]:
+            if len(heroes_5star) >= 6:
+              break
+            item_use_ev.clear()
+            await ws.send(_pkt_msg(87, struct.pack(">ii", item_id, qty)))
+            try:
+              await asyncio.wait_for(item_use_ev.wait(), timeout=0.12)
+            except asyncio.TimeoutError:
+              pass
+            await asyncio.sleep(0.04)
+        await asyncio.sleep(0.05)
 
         # Nếu chưa mở đủ 5 tướng từ 250 mảnh (+ 1 Tiểu Bạch Long = 6 tướng), mở vét nhanh (hỗ trợ cả trường hợp thư CDK đến trễ vài giây giờ cao điểm)
         for _wait_mail_try in range(2):
           if len(heroes_5star) >= 6 or REROLL_STATE["stopRequested"]:
             break
-          await asyncio.sleep(0.90)
+          await asyncio.sleep(0.60)
           await ws.send(_pkt_msg(64, b"\x01"))
           await ws.send(_pkt_msg(64, b"\x02"))
           await ws.send(_pkt_msg(61))
-          await asyncio.sleep(0.35)
+          await asyncio.sleep(0.25)
+          await ws.send(_pkt_msg(999))
+          await ws.send(_pkt_msg(998))
           for item_id, qty in [(703, 2), (703, 1), (704, 2), (704, 1), (1012, 1)]:
+            if len(heroes_5star) >= 6:
+              break
             await ws.send(_pkt_msg(87, struct.pack(">ii", item_id, qty)))
-            await asyncio.sleep(0.08)
+            await asyncio.sleep(0.05)
 
         # VÉT THƯ LẦN CUỐI TRƯỚC KHI QUAY: Đảm bảo 100% vé Thiên Mệnh + Tam Giới từ thư trễ đều đã vào túi
         await ws.send(_pkt_msg(64, b"\x01"))
@@ -2399,7 +2420,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   except Exception as e:
     set_step(f"Lỗi kết nối: {e}")
   finally:
-    WS_ACTIVE_SEM.release()
+    if ws_sem:
+      ws_sem.release()
 
   # TOÀN BỘ 14 TƯỚNG ĐỎ: NỔ >= 2x BẤT KỲ TƯỚNG ĐỎ NÀO ĐỀU LÀ JACKPOT
   red_counts = {h: heroes_5star.count(h) for h in ALL_RED_HEROES}
