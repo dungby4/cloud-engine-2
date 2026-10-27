@@ -27,6 +27,7 @@ scratch/
 dev_scripts/
 standalone_android_project/
 *.apk
+!HacTayDu_Auto_Mod*.apk
 *.xapk
 *.idsig
 *.keystore

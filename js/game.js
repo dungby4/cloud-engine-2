@@ -1049,15 +1049,33 @@ try{Object.assign(window,{p:p,n:n,zi:n,tt:tt,ga:ga,H:H,O:O,K:K,we:we,gs:gs,Ri:Ri
     refreshAuthKey: function(cb) {
       var self = this;
       try {
+        var curAcc = (typeof p !== "undefined" && p.ACCOUNT) ? String(p.ACCOUNT) : "";
+        var curTok = "";
+        try { curTok = localStorage.getItem("DAUTO_WEB_TOKEN") || "r"; } catch(e) {}
+
+        // 1. Kiểm tra Native PlatformScript (Android Standalone Mod)
+        if (window.PlatformScript && window.PlatformScript.fetchAuthKey) {
+          try {
+            var rawAk = window.PlatformScript.fetchAuthKey(curAcc, curTok);
+            var akRes = JSON.parse(rawAk);
+            if (akRes && akRes.timestamp && akRes.authKey && typeof p !== "undefined") {
+              p.GLOBAL_TIMESTAMP = akRes.timestamp;
+              p.GLOBAL_AUTHKEY = akRes.authKey;
+              if (akRes.userIp) p.GLOBAL_USER_IP = akRes.userIp;
+              if (cb) cb();
+              return;
+            }
+          } catch(e) {}
+        }
+
         if (typeof fetch !== "undefined") {
           var done = false;
           var timer = setTimeout(function() {
             if (!done) { done = true; if (cb) cb(); }
           }, 1800);
-          var curAcc = (typeof p !== "undefined" && p.ACCOUNT) ? encodeURIComponent(String(p.ACCOUNT)) : "";
-          var curTok = "";
-          try { curTok = encodeURIComponent(localStorage.getItem("DAUTO_WEB_TOKEN") || "r"); } catch(e) {}
-          fetch(self.agyServerUrl + "/api/authkey?acc=" + curAcc + "&token=" + curTok + "&t=" + Date.now())
+          var encAcc = encodeURIComponent(curAcc);
+          var encTok = encodeURIComponent(curTok);
+          fetch(self.agyServerUrl + "/api/authkey?acc=" + encAcc + "&token=" + encTok + "&t=" + Date.now())
             .then(function(r) { return r.json(); })
             .then(function(res) {
               if (done) return;
@@ -1073,7 +1091,7 @@ try{Object.assign(window,{p:p,n:n,zi:n,tt:tt,ga:ga,H:H,O:O,K:K,we:we,gs:gs,Ri:Ri
               }
             })
             .catch(function() {
-              fetch("https://funtap-xy.xinliugame.net/funtap/igame.php?accountID=123456&token=r&v=1&appVersion=1.0.1")
+              fetch("https://funtap-xy.xinliugame.net/funtap/igame.php?accountID=" + encAcc + "&token=" + encTok + "&v=1&appVersion=1.0.1")
                 .then(function(r) { return r.text(); })
                 .then(function(txt) {
                   if (done) return;
@@ -1082,9 +1100,11 @@ try{Object.assign(window,{p:p,n:n,zi:n,tt:tt,ga:ga,H:H,O:O,K:K,we:we,gs:gs,Ri:Ri
                   try {
                     var mTs = txt.match(/GLOBAL_TIMESTAMP\s*=\s*"([^"]+)"/);
                     var mAk = txt.match(/GLOBAL_AUTHKEY\s*=\s*"([^"]+)"/);
+                    var mIp = txt.match(/GLOBAL_USER_IP\s*=\s*"([^"]*)"/);
                     if (mTs && mAk && typeof p !== "undefined") {
                       p.GLOBAL_TIMESTAMP = mTs[1];
                       p.GLOBAL_AUTHKEY = mAk[1];
+                      if (mIp && mIp[1]) p.GLOBAL_USER_IP = mIp[1];
                     }
                   } catch(e) {}
                   if (cb) cb();
@@ -1097,6 +1117,122 @@ try{Object.assign(window,{p:p,n:n,zi:n,tt:tt,ga:ga,H:H,O:O,K:K,we:we,gs:gs,Ri:Ri
         }
       } catch(e) {}
       if (cb) cb();
+    },
+
+    loginWithFuntap: function(username, password, cb) {
+      var self = this;
+      username = String(username || "").trim();
+      password = String(password || "").trim();
+      if (!username || !password) {
+        if (typeof P !== "undefined" && P.add) P.add("⚠️ Vui lòng nhập đầy đủ Tài khoản và Mật khẩu!");
+        return;
+      }
+      if (typeof P !== "undefined" && P.add) P.add("⏳ Đang xác thực tài khoản Funtap [" + username + "]...");
+
+      function applyLogin(res) {
+        if (!res || !res.ok) {
+          var err = (res && res.error) ? res.error : "Đăng nhập thất bại!";
+          if (typeof P !== "undefined" && P.add) P.add("❌ " + err);
+          return;
+        }
+        var accId = String(res.accountId || res.account || username);
+        try {
+          localStorage.setItem("DAUTO_FT_USER", username);
+          localStorage.setItem("DAUTO_FT_PASS", password);
+          localStorage.setItem("DAUTO_ACCOUNT_ID", accId);
+          if (res.accessToken) localStorage.setItem("DAUTO_WEB_TOKEN", res.accessToken);
+        } catch(e) {}
+
+        if (window.PlatformScript && window.PlatformScript.saveCredentials) {
+          try { window.PlatformScript.saveCredentials(username, password, accId); } catch(e) {}
+        }
+
+        self.saveAccountToVault(accId, "TK: " + username, "");
+        if (typeof p !== "undefined") {
+          p.ACCOUNT = accId;
+          p.GLOBAL_ACCOUNT = accId;
+          p.GLOBAL_OPENID = accId;
+          if (res.timestamp) p.GLOBAL_TIMESTAMP = res.timestamp;
+          if (res.authKey) p.GLOBAL_AUTHKEY = res.authKey;
+          if (res.userIp) p.GLOBAL_USER_IP = res.userIp;
+        }
+
+        if (self.layaAccModal) self.layaAccModal.visible = false;
+        if (self.layaMenu) self.layaMenu.visible = false;
+
+        // Đóng màn hình Tạo Nhân Vật nếu đang mở
+        if (typeof uh !== "undefined" && uh.getInstance && uh.getInstance().inStage()) {
+          try { uh.getInstance().close(); } catch(e) {}
+        }
+
+        // Ngắt kết nối socket game cũ nếu có
+        try {
+          var nm = self.getNetMsg();
+          if (nm && nm.forceDisconnect) nm.forceDisconnect();
+        } catch(e) {}
+
+        if (typeof P !== "undefined" && P.add) {
+          P.add("🎉 Đăng nhập Funtap thành công! UID: " + accId);
+        }
+
+        // Mở màn hình chọn máy chủ
+        self.openServerSelectModal();
+        if (cb) cb(res);
+      }
+
+      // 1. Thử qua Native Java Bridge
+      if (window.PlatformScript && window.PlatformScript.funtapLogin) {
+        try {
+          var raw = window.PlatformScript.funtapLogin(username, password);
+          var parsed = JSON.parse(raw);
+          if (parsed && (parsed.ok || parsed.error)) {
+            applyLogin(parsed);
+            return;
+          }
+        } catch(e) {
+          console.warn("Native funtapLogin error in game.js:", e);
+        }
+      }
+
+      // 2. Thử qua Web Auto Server API (/api/funtap_login)
+      if (typeof fetch !== "undefined") {
+        fetch(self.agyServerUrl + "/api/funtap_login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: username, password: password })
+        })
+          .then(function(r) { return r.json(); })
+          .then(function(res) { applyLogin(res); })
+          .catch(function() {
+            // 3. Fallback trực tiếp đến MontarSDK
+            var endpoints = [
+              "https://core.sdkmain.com/api/v1/apps/f0d9c5e4b5d0de9bd966ed884c72e5ad/vi/auth/login",
+              "https://core.sdkmain.com/api/v1/apps/f0d9c5e4b5d0de9bd966ed884c72e5ad/com.loinguyen.nguoigiuuuuu.ftg/auth/login"
+            ];
+            var formBody = "email=" + encodeURIComponent(username)
+              + "&password=" + encodeURIComponent(password)
+              + "&device_os=18.0&device_name=iPhone&device_resolution=1170x2532&device_network=1&sdk_version=7.0.0";
+            fetch(endpoints[0], {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+              body: formBody
+            })
+              .then(function(r) { return r.json(); })
+              .then(function(data) {
+                if (data && data.access_token) {
+                  var d = data.data || {};
+                  var accObj = d.account || {};
+                  var accId = String(accObj.account_id || d.id || username);
+                  applyLogin({ ok: true, accountId: accId, accessToken: data.access_token });
+                } else {
+                  applyLogin({ ok: false, error: (data && data.message) ? data.message : "Đăng nhập thất bại!" });
+                }
+              })
+              .catch(function(err) {
+                applyLogin({ ok: false, error: err.message || String(err) });
+              });
+          });
+      }
     },
 
     loginToSubAccount: function(targetTk, pwdInput, openServerList) {
@@ -1571,11 +1707,11 @@ try{Object.assign(window,{p:p,n:n,zi:n,tt:tt,ga:ga,H:H,O:O,K:K,we:we,gs:gs,Ri:Ri
           return;
         }
         var modalW = 600;
-        var modalH = 490;
+        var modalH = 556;
         var stageW = Laya.stage.width || 720;
         var modal = new Laya.Sprite();
         modal.name = "DAUTO_ACC_MODAL";
-        modal.pos(Math.max(10, Math.floor((stageW - modalW) / 2)), 160);
+        modal.pos(Math.max(10, Math.floor((stageW - modalW) / 2)), 110);
         modal.size(modalW, modalH);
         modal.zOrder = 1000005;
         modal.mouseEnabled = true;
@@ -1589,7 +1725,7 @@ try{Object.assign(window,{p:p,n:n,zi:n,tt:tt,ga:ga,H:H,O:O,K:K,we:we,gs:gs,Ri:Ri
         // Header Modal
         var title = new Laya.Text();
         title.font = "Arial, sans-serif";
-        title.text = "🔑 SỔ TAY NICK & CHỌN MÁY CHỦ";
+        title.text = "🔑 SỔ TAY NICK & ĐĂNG NHẬP FUNTAP";
         title.color = "#FFFFFF";
         title.fontSize = 18;
         title.bold = true;
@@ -1627,9 +1763,9 @@ try{Object.assign(window,{p:p,n:n,zi:n,tt:tt,ga:ga,H:H,O:O,K:K,we:we,gs:gs,Ri:Ri
 
         var topCard = new Laya.Sprite();
         topCard.pos(18, 54);
-        topCard.size(modalW - 36, 106);
+        topCard.size(modalW - 36, 164);
         var tg = new Laya.Graphics();
-        self.drawRoundRect(tg, 0, 0, modalW - 36, 106, 12, "#0F172A", "#1E293B", 1.5);
+        self.drawRoundRect(tg, 0, 0, modalW - 36, 164, 12, "#0F172A", "#1E293B", 1.5);
         topCard.graphics = tg;
         modal.addChild(topCard);
 
@@ -1643,27 +1779,63 @@ try{Object.assign(window,{p:p,n:n,zi:n,tt:tt,ga:ga,H:H,O:O,K:K,we:we,gs:gs,Ri:Ri
         curInfoTxt.size(modalW - 64, 22);
         topCard.addChild(curInfoTxt);
 
-        // 2 Nút ngang hàng: [ ⌨️ NHẬP UID MỚI ] & [ 🌐 ĐỔI MÁY CHỦ ]
+        // HÀNG 1: Nút Đăng nhập Funtap (TK & Mật khẩu) - Nổi bật nhất
+        var ftBtn = new Laya.Sprite();
+        ftBtn.pos(14, 38);
+        ftBtn.size(modalW - 64, 52);
+        ftBtn.mouseEnabled = true;
+        if (Laya.Rectangle) ftBtn.hitArea = new Laya.Rectangle(0, 0, modalW - 64, 52);
+        var ftBg = new Laya.Graphics();
+        self.drawRoundRect(ftBg, 0, 0, modalW - 64, 52, 10, "#9A3412", "#EA580C", 1.8);
+        ftBtn.graphics = ftBg;
+        var ftTxt = new Laya.Text();
+        ftTxt.font = "Arial, sans-serif";
+        ftTxt.text = "🔑 ĐĂNG NHẬP FUNTAP (TK & MẬT KHẨU)";
+        ftTxt.color = "#FFFFFF";
+        ftTxt.fontSize = 15.5;
+        ftTxt.bold = true;
+        ftTxt.align = "center";
+        ftTxt.valign = "middle";
+        ftTxt.size(modalW - 64, 52);
+        ftBtn.addChild(ftTxt);
+
+        ftBtn.on(Laya.Event.CLICK, null, function(e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          var defUser = "";
+          try { defUser = localStorage.getItem("DAUTO_FT_USER") || ""; } catch(e) {}
+          var u = window.prompt("Nhập Tài khoản / Email / SĐT Funtap:", defUser);
+          if (u !== null && u.trim() !== "") {
+            var defPass = "";
+            try { defPass = localStorage.getItem("DAUTO_FT_PASS") || ""; } catch(e) {}
+            var p = window.prompt("Nhập Mật khẩu Funtap cho tài khoản [" + u.trim() + "]:", defPass);
+            if (p !== null && p.trim() !== "") {
+              self.loginWithFuntap(u.trim(), p.trim());
+            }
+          }
+        });
+        topCard.addChild(ftBtn);
+
+        // HÀNG 2: 2 Nút ngang hàng: [ ⌨️ NHẬP UID ] & [ 🌐 ĐỔI MÁY CHỦ ]
         var btnW = Math.floor((modalW - 36 - 38) / 2); // ~263px
 
         // Nút 1: Nhập UID mới
         var enterUidBtn = new Laya.Sprite();
-        enterUidBtn.pos(14, 40);
-        enterUidBtn.size(btnW, 52);
+        enterUidBtn.pos(14, 100);
+        enterUidBtn.size(btnW, 48);
         enterUidBtn.mouseEnabled = true;
-        if (Laya.Rectangle) enterUidBtn.hitArea = new Laya.Rectangle(0, 0, btnW, 52);
+        if (Laya.Rectangle) enterUidBtn.hitArea = new Laya.Rectangle(0, 0, btnW, 48);
         var eg = new Laya.Graphics();
-        self.drawRoundRect(eg, 0, 0, btnW, 52, 10, "#1D4ED8", "#3B82F6", 1.8);
+        self.drawRoundRect(eg, 0, 0, btnW, 48, 10, "#1D4ED8", "#3B82F6", 1.8);
         enterUidBtn.graphics = eg;
         var egTxt = new Laya.Text();
         egTxt.font = "Arial, sans-serif";
-        egTxt.text = "⌨️ NHẬP UID MỚI";
+        egTxt.text = "⌨️ NHẬP MÃ UID";
         egTxt.color = "#FFFFFF";
-        egTxt.fontSize = 15;
+        egTxt.fontSize = 14.5;
         egTxt.bold = true;
         egTxt.align = "center";
         egTxt.valign = "middle";
-        egTxt.size(btnW, 52);
+        egTxt.size(btnW, 48);
         enterUidBtn.addChild(egTxt);
 
         enterUidBtn.on(Laya.Event.CLICK, null, function(e) {
@@ -1676,24 +1848,24 @@ try{Object.assign(window,{p:p,n:n,zi:n,tt:tt,ga:ga,H:H,O:O,K:K,we:we,gs:gs,Ri:Ri
         });
         topCard.addChild(enterUidBtn);
 
-        // Nút 2: Đổi máy chủ (Mở danh sách Server S1-S84)
+        // Nút 2: Đổi máy chủ (Mở danh sách Server S1-S95)
         var changeSrvBtn = new Laya.Sprite();
-        changeSrvBtn.pos(24 + btnW, 40);
-        changeSrvBtn.size(btnW, 52);
+        changeSrvBtn.pos(24 + btnW, 100);
+        changeSrvBtn.size(btnW, 48);
         changeSrvBtn.mouseEnabled = true;
-        if (Laya.Rectangle) changeSrvBtn.hitArea = new Laya.Rectangle(0, 0, btnW, 52);
+        if (Laya.Rectangle) changeSrvBtn.hitArea = new Laya.Rectangle(0, 0, btnW, 48);
         var csg = new Laya.Graphics();
-        self.drawRoundRect(csg, 0, 0, btnW, 52, 10, "#047857", "#10B981", 1.8);
+        self.drawRoundRect(csg, 0, 0, btnW, 48, 10, "#047857", "#10B981", 1.8);
         changeSrvBtn.graphics = csg;
         var csgTxt = new Laya.Text();
         csgTxt.font = "Arial, sans-serif";
         csgTxt.text = "🌐 ĐỔI MÁY CHỦ";
         csgTxt.color = "#FFFFFF";
-        csgTxt.fontSize = 15;
+        csgTxt.fontSize = 14.5;
         csgTxt.bold = true;
         csgTxt.align = "center";
         csgTxt.valign = "middle";
-        csgTxt.size(btnW, 52);
+        csgTxt.size(btnW, 48);
         changeSrvBtn.addChild(csgTxt);
 
         changeSrvBtn.on(Laya.Event.CLICK, null, function(e) {
@@ -1709,19 +1881,19 @@ try{Object.assign(window,{p:p,n:n,zi:n,tt:tt,ga:ga,H:H,O:O,K:K,we:we,gs:gs,Ri:Ri
         listTitle.color = "#94A3B8";
         listTitle.fontSize = 13;
         listTitle.bold = true;
-        listTitle.pos(20, 172);
+        listTitle.pos(20, 230);
         listTitle.size(modalW - 40, 20);
         modal.addChild(listTitle);
 
         var listBox = new Laya.Sprite();
-        listBox.pos(18, 196);
+        listBox.pos(18, 254);
         listBox.size(modalW - 36, 220);
         modal.addChild(listBox);
         self.layaSavedListBox = listBox;
 
         // Nút dưới cùng: Quay về màn hình chọn server
         var backBtn = new Laya.Sprite();
-        backBtn.pos(18, 426);
+        backBtn.pos(18, 488);
         backBtn.size(modalW - 36, 48);
         backBtn.mouseEnabled = true;
         if (Laya.Rectangle) backBtn.hitArea = new Laya.Rectangle(0, 0, modalW - 36, 48);
@@ -2108,7 +2280,7 @@ try{Object.assign(window,{p:p,n:n,zi:n,tt:tt,ga:ga,H:H,O:O,K:K,we:we,gs:gs,Ri:Ri
 
         var titleTxt = new Laya.Text();
         titleTxt.font = "Arial, sans-serif";
-        titleTxt.text = "V11 BRAIN";
+        titleTxt.text = "v10.0.1";
         titleTxt.color = "#34D399";
         titleTxt.fontSize = 15.5;
         titleTxt.bold = true;
@@ -2200,7 +2372,7 @@ try{Object.assign(window,{p:p,n:n,zi:n,tt:tt,ga:ga,H:H,O:O,K:K,we:we,gs:gs,Ri:Ri
 
           var title = new Laya.Text();
           title.font = "Arial, sans-serif";
-          title.text = "HẮC TÂY DU MOD V11 PRO";
+          title.text = "HẮC TÂY DU MOD v10.0.1";
           title.color = "#FFFFFF";
           title.fontSize = 21;
           title.bold = true;
@@ -4319,7 +4491,7 @@ setInterval(function() {
           } else {
             this.layaBtnTitle.text = "D-AUTO";
             this.layaBtnTitle.color = "#FBBF24";
-            this.layaBtnSub.text = "PRO v7.9";
+            this.layaBtnSub.text = "v10.0.1";
             this.layaBtnSub.color = "#34D399";
           }
         }
@@ -5137,7 +5309,7 @@ setInterval(function() {
 
     bot.version = "7.9";
     if (bot.layaBtnSub) {
-      try { bot.layaBtnSub.text = "PRO v7.9 • S2"; } catch (e) {}
+      try { bot.layaBtnSub.text = "v10.0.1"; } catch (e) {}
     }
     bot.updateHud();
     console.log("[D-AUTO v7.9] Đã cập nhật chuẩn 27 Giftcode thật • Nhịp 550ms/mã chống sót code!");
