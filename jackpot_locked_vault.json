@@ -399,5 +399,27 @@
     "lockedAt": "2026-10-27T21:25:29.899Z",
     "serverId": "610099",
     "serverName": "[S99] Bàn Tơ Động-S9"
+  },
+  {
+    "idx": 170624,
+    "username": "ntdung170624",
+    "password": "ntde8bvc8",
+    "accId": "721997629",
+    "phone": "0974862667",
+    "funid": "386755007",
+    "lockedAt": "2026-10-27T21:26:50.160Z",
+    "serverId": "610099",
+    "serverName": "[S99] Bàn Tơ Động-S9"
+  },
+  {
+    "idx": 170642,
+    "username": "ntdung170642",
+    "password": "tdhs2sk7",
+    "accId": "722001045",
+    "phone": "0367188910",
+    "funid": "386755352",
+    "lockedAt": "2026-10-27T21:28:12.689Z",
+    "serverId": "610099",
+    "serverName": "[S99] Bàn Tơ Động-S9"
   }
 ]
