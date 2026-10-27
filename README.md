@@ -1,115 +1,28 @@
-# HẮC TÂY DU WEB AUTO v7.9 — MULTI-MACHINE & AUTO REROLL
+# Hắc Tây Du M2 — SDK 3.1.1 CLEAN
 
-Tool auto reroll và web client tự động cho game Hắc Tây Du (Funtap), hỗ trợ chạy đa luồng cực nhanh, chạy đồng thời trên nhiều máy tính độc lập (Multi-Machine), tự động nhận diện server mới nhất và tích hợp đẩy tài khoản trúng vào Bot bán hàng (Telegram Shop Bot).
+Đây là bản thay M2 cũ, chạy song song với M1. Không chạy đồng thời hai bản M2. Gồm 13.654 nick phần M2, Telegram ghi M2; 16 luồng / 180 ms và 1 worker tân thủ riêng. Chỉ dùng nick sẵn có, chỉ quay vé Thiên Mệnh 501; giữ 502/503. Tự chọn server mới nhất từ 610094; nick không nổ vẫn dùng lại ở server sau. Bảo vệ nick đã bán/két/đã lấy.
 
----
+## Chuyển từ M2 cũ
 
-## 🚀 1. KIẾN TRÚC CHẠY ĐỒNG THỜI NHIỀU MÁY (MULTI-MACHINE)
+1. Chạy DUNG ở M2 cũ và chờ dừng hẳn.
+2. Giải nén bản mới vào thư mục riêng.
+3. Chép nguyên thư mục `state` của chính máy M2 cũ vào bản mới để giữ checkpoint/két/hàng đợi. Không chép state hoặc machine.json từ M1. Không chép đè source JS/Python bằng bản cũ.
+4. Cài Node.js 20+ và Python 3.9+ (thêm PATH).
+5. Windows: chạy `CAI_DAT_WINDOWS.bat`, sau đó `KIEM_TRA_BAN_WINDOWS.bat` (phải báo 3.1.1 / OK), rồi `CHAY_WINDOWS.bat`.
+6. Mac: chạy `CAI_DAT_MAC.command`, sau đó `CHAY_MAC.command`.
 
-Để 2 hoặc nhiều máy cùng cày reroll song song mà không bao giờ bị đụng độ:
+Bộ cài sẽ đặt lại M2/2, 16 luồng / 180 ms và server tối thiểu 610094 sau khi nhập state cũ. Đóng cửa sổ log không dừng runner; dùng DUNG để dừng an toàn. Giữ thư mục state khi chạy tiếp.
 
-1. **Phân tách không gian tên tài khoản (Prefix Isolation):**
-   - **Máy 1:** Dùng tiền tố `htd_vip` $\rightarrow$ sinh nick: `htd_vip_a_001`, `htd_vip_a_002`...
-   - **Máy 2:** Dùng tiền tố `htd_m2` $\rightarrow$ sinh nick: `htd_m2_a_001`, `htd_m2_a_002`...
-   - **Máy 3:** Dùng tiền tố `htd_m3` $\rightarrow$ sinh nick: `htd_m3_a_001`, `htd_m3_a_002`...
-   - Mỗi máy tạo ra dải nick hoàn toàn độc lập, không trùng nhau trên hệ thống Funtap.
+## Sửa login
 
-2. **Cơ chế tái sử dụng phôi nick:**
-   - Mỗi máy lưu trữ dữ liệu nick đã cày ở file local `DAN_NICK_DA_QUAY.json` (được `.gitignore` để không bị xung đột khi `git pull`/`git push`).
-   - Khi Funtap mở server mới (ví dụ S72), cả 2 máy sẽ tự động phát hiện và đem toàn bộ phôi nick cũ của máy mình sang server mới để quay lại từ đầu, tối ưu 100% thời gian tạo nick.
+SDK TK/MK -> checkLogin.php -> đối chiếu openid với AccID -> dùng đúng time/authkey/userIp để vào game. Không dùng token r hoặc khóa giả. Chưa xác nhận login thì không gửi code/quay vé; lỗi danh tính/xác thực sẽ dừng nhận nick mới.
 
-3. **Thu hoạch tài khoản:**
-   - Khi quay trúng tướng mục tiêu (≥2 Dương Tiễn hoặc ≥2 Tôn Ngộ Không), máy sẽ tự động:
-     - Ghi vào `DAN_NICK_TRUNG_TUONG.txt` & `.csv`.
-     - Chụp ảnh bằng chứng vào thư mục `anh_nick_trung/`.
-     - Bơm trực tiếp tài khoản sang Bot Bán Hàng.
+Rule nổ giữ nguyên: X2/X3 cùng nòng cốt; Cang Kim chỉ trừ đúng 1 bản code tặng. Nick nổ khóa két, tân thủ riêng, xác nhận hoàn tất và Lv8+, ảnh túi tướng xếp cặp đầu rồi gửi Tele kèm tên máy M2. Lỗi không báo hoàn tất giả.
 
----
+Nguồn đã chạy thực tế trên Mac với SDK login và phản hồi 28/28. Kiểm tra offline/ZIP được thực hiện trước bàn giao; chưa chạy thực tế trên Windows. Đây là source + launcher cài dependencies, không kèm Node/Python/Chromium. Cần Internet khi cài.
 
-## 🛠️ 2. HƯỚNG DẪN CÀI ĐẶT & CHẠY
+ZIP có tài khoản/mật khẩu và cấu hình Telegram của anh; chỉ chuyển riêng cho máy anh quản lý.
 
-### Yêu cầu môi trường:
-- Python 3.10 trở lên.
-- Cài đặt thư viện:
-  ```bash
-  pip install aiohttp playwright requests
-  playwright install chromium
-  ```
+## Bản clean
 
-### Khởi chạy trên từng máy:
-
-#### 👉 Trên Máy 1:
-- Nhấp đúp vào: **`Chay_May_1.bat`**
-- Hoặc chạy lệnh:
-  ```bash
-  python chay_web_auto.py --machine 1 --prefix htd_vip --threads 24 --port 8088
-  ```
-
-#### 👉 Trên Máy 2:
-- Clone repo về máy:
-  ```bash
-  git clone https://github.com/truongqv12/HacTayDu_Web_Auto_v79.git
-  cd HacTayDu_Web_Auto_v79
-  ```
-- Nhấp đúp vào: **`Chay_May_2.bat`**
-- Hoặc chạy lệnh:
-  ```bash
-  python chay_web_auto.py --machine 2 --prefix htd_m2 --threads 24 --port 8088
-  ```
-
----
-
-## ⚙️ 3. CẤU HÌNH HỆ THỐNG (`config.json` & `config_local.json`)
-
-Nếu các nick nhận giftcode không đều, xem [hướng dẫn kiểm tra giftcode](docs/giftcode-troubleshooting.md).
-
-Mỗi máy có thể cấu hình riêng thông qua file `config_local.json` (ưu tiên cao nhất, không bị git đè) hoặc file chung `config.json`:
-
-```json
-{
-  "machine_id": "m1",
-  "account_prefix": "htd_vip",
-  "threads": 24,
-  "port": 8088,
-  "target_server": "latest",
-  "min_copies": 2,
-  "sales_bot": {
-    "enabled": false,
-    "webhook_url": "https://your-bot-domain.com/api/webhook/hactaydu",
-    "auth_token": "YOUR_SECRET_TOKEN",
-    "telegram_bot_token": "",
-    "telegram_chat_id": ""
-  }
-}
-```
-
----
-
-## 🤖 4. ĐẤU NỐI BƠM TÀI KHOẢN VÀO BOT BÁN HÀNG
-
-Hệ thống hỗ trợ 2 phương án đấu nối:
-
-### Cách 1: Bơm Realtime qua Webhook (Khuyên dùng khi bot có API)
-Khi bất kỳ máy nào nổ nick x2/x3, background worker sẽ tự động gửi HTTP POST payload JSON:
-```json
-{
-  "event": "reroll_winner",
-  "machine_id": "m1",
-  "account": "htd_vip_a_127",
-  "password": "...",
-  "funtap_id": "...",
-  "server_id": 610071,
-  "server_name": "[S71 Mới Nhất] Nữ Nhi Quốc-S1",
-  "target_hero": "Dương Tiễn",
-  "count": 2,
-  "heroes": ["Dương Tiễn", "Dương Tiễn", "Cang Kim Tinh Quân", ...],
-  "screenshot_path": "anh_nick_trung/htd_vip_b_127_S71.png",
-  "timestamp": 1729647000
-}
-```
-
-### Cách 2: Đồng bộ hàng loạt vào Telegram Shop Bot trên VPS
-Nhấp đúp vào **`push_to_bot.bat`** (hoặc chạy `python push_hactaydu.py`):
-- Tự động đồng bộ ảnh chụp từ `anh_nick_trung/` sang VPS qua SSH/SCP.
-- Copy `DAN_NICK_TRUNG_TUONG.txt` vào container bot.
-- Kích hoạt lệnh nạp kho tự động trên bot: `sync_hactaydu_data(purge_mock=False)`.
+Chỉ làm sạch đóng gói, không đổi logic runtime so với SDK 3.1.0 đã chạy. Không có node_modules, môi trường .venv, log, ảnh cũ, file thử nick, file tạm hoặc tiến trình chạy. Cài đặt sẽ tải dependencies. Có test/ để tự kiểm tra npm test. Có dữ liệu processed_accounts và protection để giữ lịch sử/bảo vệ; không xóa các file này.

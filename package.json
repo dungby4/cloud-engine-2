@@ -1,8 +1,19 @@
 {
-  "name": "hactaydu-reroll-engine",
-  "version": "1.0.0",
-  "private": true,
+  "name": "hactaydu-m2-sdk",
+  "version": "3.1.1",
+  "description": "Separated registration-only and reroll lab with bounded execution and offline shard validation",
+  "main": "src/cli.js",
+  "scripts": {
+    "start": "node scripts/start-live.js",
+    "stop": "node scripts/stop-live.js",
+    "test": "node --test test/*.test.js giftcodes.test.js jackpot_rules.test.js runtime_settings.test.js"
+  },
   "dependencies": {
-    "playwright": "^1.49.0"
+    "axios": "1.20.0",
+    "playwright": "1.64.1"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
   }
 }

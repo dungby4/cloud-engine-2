@@ -228,7 +228,27 @@ async function prepareAndScreenshotJackpotAccount({
   let guideClearedToNull = false;
   let explicitGuideNull = false;
   const winningHeroIds=new Set();
-  if (targetHeroId) winningHeroIds.add(Number(targetHeroId));
+  let heroBagTopIds=[],winnerPhotoOrdered=false;
+  const matchTargetHero = (id, rawName, rawName2) => {
+    const combinedRaw = String(rawName || '') + ' ' + String(rawName2 || '');
+    const norm = combinedRaw.toLowerCase();
+    if (id === 1014 || norm.includes('duong tien') || norm.includes('dương tiễn') || combinedRaw.includes('杨戬')) return 'Dương Tiễn';
+    if (id === 2014 || norm.includes('ngo khong') || norm.includes('ngộ không') || combinedRaw.includes('孙悟空')) return 'Tôn Ngộ Không';
+    if (id === 3014 || norm.includes('na tra') || combinedRaw.includes('哪吒')) return 'Na Tra';
+    if (id === 3010 || norm.includes('duong tam tang') || norm.includes('đường tam tạng') || combinedRaw.includes('唐僧')) return 'Đường Tam Tạng';
+    if (id === 2015 || norm.includes('cang kim') || norm.includes('cangkim') || combinedRaw.includes('亢金')) return 'Cang Kim Tinh Quân';
+    if (id === 2012 || norm.includes('hong hai nhi') || norm.includes('hồng hài nhi') || combinedRaw.includes('红孩儿')) return 'Hồng Hài Nhi';
+    if (id === 3012 || norm.includes('tran nguyen tu') || norm.includes('trấn nguyên tử') || combinedRaw.includes('镇元子')) return 'Trấn Nguyên Tử';
+    if (id === 2013 || norm.includes('ngoc dien') || norm.includes('ngọc diện') || combinedRaw.includes('玉面')) return 'Ngọc Diện Hồ Ly';
+    if (id === 1007 || norm.includes('hang nga') || norm.includes('hằng nga') || combinedRaw.includes('嫦娥')) return 'Hằng Nga';
+    if (id === 3004 || norm.includes('hoang my') || norm.includes('hoàng my') || combinedRaw.includes('黄眉')) return 'Hoàng My';
+    if (id === 2006 || norm.includes('nguu ma') || norm.includes('ngưu ma') || combinedRaw.includes('牛魔')) return 'Ngưu Ma Vương';
+    if (id === 2007 || norm.includes('thiet phien') || norm.includes('thiết phiến') || combinedRaw.includes('铁扇')) return 'Thiết Phiến Công Chúa';
+    if (id === 3006 || norm.includes('hang long') || norm.includes('hàng long') || combinedRaw.includes('降龙')) return 'Hàng Long Tôn Giả';
+    if (id === 2010 || norm.includes('bat gioi') || norm.includes('bát giới') || combinedRaw.includes('八戒')) return 'Trư Bát Giới';
+    if (norm.includes('ly tinh') || norm.includes('lý tịnh') || combinedRaw.includes('李靖') || combinedRaw.includes('托塔')) return 'Lý Tịnh';
+    return null;
+  };
   const heroNameToIdMap = {
     'dương tiễn': 1014,
     'tôn ngộ không': 2014,
@@ -255,6 +275,7 @@ async function prepareAndScreenshotJackpotAccount({
     'bát giới': 2010,
     'lý tịnh': 3014,
   };
+  if (targetHeroId) winningHeroIds.add(Number(targetHeroId));
   if (Array.isArray(targetHeroNames)) {
     for (const name of targetHeroNames) {
       const nLow = String(name || '').toLowerCase();
@@ -266,27 +287,6 @@ async function prepareAndScreenshotJackpotAccount({
       }
     }
   }
-  let heroBagTopIds=[],winnerPhotoOrdered=false;
-  const matchTargetHero = (id, rawName, rawName2) => {
-    const combinedRaw = String(rawName || '') + ' ' + String(rawName2 || '');
-    const norm = combinedRaw.toLowerCase();
-    if (id === 1014 || norm.includes('duong tien') || norm.includes('dương tiễn') || combinedRaw.includes('杨戬')) return 'Dương Tiễn';
-    if (id === 2014 || norm.includes('ngo khong') || norm.includes('ngộ không') || combinedRaw.includes('孙悟空')) return 'Tôn Ngộ Không';
-    if (id === 3014 || norm.includes('na tra') || combinedRaw.includes('哪吒')) return 'Na Tra';
-    if (id === 3010 || norm.includes('duong tam tang') || norm.includes('đường tam tạng') || combinedRaw.includes('唐僧')) return 'Đường Tam Tạng';
-    if (id === 2015 || norm.includes('cang kim') || norm.includes('cangkim') || combinedRaw.includes('亢金')) return 'Cang Kim Tinh Quân';
-    if (id === 2012 || norm.includes('hong hai nhi') || norm.includes('hồng hài nhi') || combinedRaw.includes('红孩儿')) return 'Hồng Hài Nhi';
-    if (id === 3012 || norm.includes('tran nguyen tu') || norm.includes('trấn nguyên tử') || combinedRaw.includes('镇元子')) return 'Trấn Nguyên Tử';
-    if (id === 2013 || norm.includes('ngoc dien') || norm.includes('ngọc diện') || combinedRaw.includes('玉面')) return 'Ngọc Diện Hồ Ly';
-    if (id === 1007 || norm.includes('hang nga') || norm.includes('hằng nga') || combinedRaw.includes('嫦娥')) return 'Hằng Nga';
-    if (id === 3004 || norm.includes('hoang my') || norm.includes('hoàng my') || combinedRaw.includes('黄眉')) return 'Hoàng My';
-    if (id === 2006 || norm.includes('nguu ma') || norm.includes('ngưu ma') || combinedRaw.includes('牛魔')) return 'Ngưu Ma Vương';
-    if (id === 2007 || norm.includes('thiet phien') || norm.includes('thiết phiến') || combinedRaw.includes('铁扇')) return 'Thiết Phiến Công Chúa';
-    if (id === 3006 || norm.includes('hang long') || norm.includes('hàng long') || combinedRaw.includes('降龙')) return 'Hàng Long Tôn Giả';
-    if (id === 2010 || norm.includes('bat gioi') || norm.includes('bát giới') || combinedRaw.includes('八戒')) return 'Trư Bát Giới';
-    if (norm.includes('ly tinh') || norm.includes('lý tịnh') || combinedRaw.includes('李靖') || combinedRaw.includes('托塔')) return 'Lý Tịnh';
-    return null;
-  };
   const campaignCheckpointPath=path.join(WORKSPACE,'state','tutorial-campaigns',`${sid}-${accId}.json`);
   const campaignEvidence={initialChapterID:null,currentChapterID:null,wins:0,...(recoverSkippedCampaign?require('./src/storage').readJSON(campaignCheckpointPath,{}):{})};
   let lastLiveWrite=0;
@@ -383,18 +383,16 @@ async function prepareAndScreenshotJackpotAccount({
             }, 120);
             setTimeout(() => {
               try {
-                // Nâng cấp copy thứ 2 TRƯỚC (2 hiệp) để chắc chắn copy 2 đạt Lv.10+, không bao giờ bị kẹt ở Lv.1 vì hết EXP!
-                for (let k = 0; k < 2; k++) {
-                  if (n.CG_HERO_UP_DO) {
-                    n.CG_HERO_UP_DO(secondCopy.heroUuid, 0);
-                    n.CG_HERO_UP_DO(secondCopy.heroUuid, 1);
-                  }
-                }
-                // Sau đó nâng cấp copy thứ 1 với lượng EXP còn lại (Lv.20+)
                 for (let k = 0; k < 4; k++) {
                   if (n.CG_HERO_UP_DO) {
                     n.CG_HERO_UP_DO(firstCopy.heroUuid, 0);
                     n.CG_HERO_UP_DO(firstCopy.heroUuid, 1);
+                  }
+                }
+                for (let k = 0; k < 3; k++) {
+                  if (n.CG_HERO_UP_DO) {
+                    n.CG_HERO_UP_DO(secondCopy.heroUuid, 0);
+                    n.CG_HERO_UP_DO(secondCopy.heroUuid, 1);
                   }
                 }
               } catch (_) {}
@@ -904,10 +902,10 @@ async function prepareAndScreenshotJackpotAccount({
           }
         } catch (_) {}
         return false;
-      }, { timeout: 120000, polling: 1000 });
+      }, { timeout: 60000, polling: 1000 });
       console.log(`✅ [${username}] Giao diện chính game đã nạp thành công!`);
     } catch (_) {
-      console.warn(`⚠️ [${username}] Hết 120s chờ UI chính, tiến hành kích hoạt giao diện...`);
+      console.warn(`⚠️ [${username}] Hết 60s chờ UI chính, tiến hành kích hoạt giao diện...`);
     }
 
     // Chờ 2.5s để UI và hoạt ảnh vào game (loginTween) ổn định hoàn toàn
@@ -1010,14 +1008,6 @@ async function prepareAndScreenshotJackpotAccount({
       await page.waitForTimeout(1000);
     }
 
-    const bagOpened = await page.evaluate(() => {
-      try {
-        const s = window.si?.getInstance();
-        return !!(s && (s.ui?.cardList?.list || (typeof s.inStage === "function" && s.inStage())));
-      } catch (_) { return false; }
-    });
-    if (!bagOpened) throw Error('HERO_BAG_NOT_OPENED_GAME_STILL_LOADING');
-
     // Tự động sắp xếp 2 hoặc 3 tướng jackpot đứng kề nhau ngay hàng đầu của Túi Thần Tướng
     const photoOrder = await page.evaluate(({ targetHeroIds, targetHeroId }) => {
         const comp = window.si?.getInstance()?.ui?.cardList?.list;
@@ -1033,8 +1023,8 @@ async function prepareAndScreenshotJackpotAccount({
           if (!isATarget && isBTarget) return 1;
           return (b.star || 0) - (a.star || 0) || (b.lv || 0) - (a.lv || 0);
         });
-        comp.array = rows;
         comp.dataSource = rows;
+        comp.array = rows;
         try {
           if (comp.cells && comp.renderHandler) {
             for (let i = 0; i < Math.min(6, rows.length); i++) {

@@ -1,0 +1,9 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),{login,authKey}=require('../src/funtap_auth');
+const account={username:'test-user',password:'not-a-real-password',accId:'720'};
+const sdk={access_token:'sdk-test-token',data:{id:386,account:{account_id:720}}};
+function requestFor(game,calls=[]){return async(url,options)=>{calls.push([String(url),options]);return {ok:true,json:async()=>calls.length===1?sdk:game}};}
+test('SDK binds game account_id, calls official handoff and keeps returned IP',async()=>{const calls=[];assert.deepEqual(await authKey('720',account,requestFor({code:200,openid:720,time:123,authkey:'key',userIp:'192.0.2.1'},calls)),{ts:'123',ak:'key',userIp:'192.0.2.1'});const u=new URL(calls[1][0]);assert(u.pathname.endsWith('/funtap/checkLogin.php'));assert.equal(u.searchParams.get('access_token'),'sdk-test-token');assert.equal(u.searchParams.get('plt'),'android');assert.equal(calls[0][1].body.get('email'),'test-user');});
+test('SDK refuses missing token',async()=>{await assert.rejects(login(account,async()=>({ok:true,json:async()=>({data:{account:{account_id:720}}})})),/SDK_LOGIN_REJECTED/)});
+test('SDK refuses mismatched account before requesting game key',async()=>{let calls=0;await assert.rejects(authKey('720',account,async()=>{calls++;return {ok:true,json:async()=>({access_token:'test',data:{account:{account_id:999}}})}}),/SDK_ACCOUNT_ID_MISMATCH/);assert.equal(calls,1)});
+test('missing game key never returns fallback success',async()=>{await assert.rejects(authKey('720',account,requestFor({code:200,openid:720})),/GAME_AUTH_NOT_CONFIRMED/)});
+test('handoff must confirm the exact game account',async()=>{await assert.rejects(authKey('720',account,requestFor({code:200,openid:999,time:123,authkey:'key'})),/GAME_AUTH_ACCOUNT_NOT_BOUND/)});

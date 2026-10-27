@@ -1,0 +1,1 @@
+const path=require('path');const {atomicJSON}=require('../src/storage');atomicJSON(path.resolve(__dirname,'../state/stop-requested.json'),{at:new Date().toISOString()});console.log('Đã yêu cầu dừng nhận nick mới. Chờ các nick và ảnh/Tele đang xử lý hoàn tất.');

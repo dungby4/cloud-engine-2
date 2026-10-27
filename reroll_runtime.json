@@ -1,0 +1,7 @@
+{
+  "concurrency": 1,
+  "codeDelayMs": 500,
+  "codeTimeoutMs": 3500,
+  "codeRetryTimeoutMs": 5500,
+  "codeRounds": 3
+}

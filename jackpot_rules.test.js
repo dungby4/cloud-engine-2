@@ -1,0 +1,20 @@
+const {test}=require('node:test');const assert=require('node:assert/strict');const {evaluateJackpot}=require('./jackpot_rules');
+test('x2 and x3 qualify, a gifted Cang Kim does not upgrade the combo',()=>{
+ const x=evaluateJackpot({'Dương Tiễn':2,'Cang Kim Tinh Quân':1});assert.equal(x.isJackpotAlert,true);assert.equal(x.isCoreX2Plus1,false);
+ assert.equal(evaluateJackpot({'Na Tra':3}).isJackpotAlert,true);
+});
+test('x2 plus an additional non-gifted core qualifies as a combo',()=>{
+ assert.equal(evaluateJackpot({'Dương Tiễn':2,'Đường Tam Tạng':1,'Cang Kim Tinh Quân':1}).isCoreX2Plus1,true);
+});
+test('three distinct singles never qualify',()=>{
+ assert.equal(evaluateJackpot({'Dương Tiễn':1,'Na Tra':1,'Tôn Ngộ Không':1,'Cang Kim Tinh Quân':1}).isJackpotAlert,false);
+});
+test('only the one gifted Cang Kim is excluded',()=>{
+ const gift=evaluateJackpot({'Cang Kim Tinh Quân':1});
+ assert.equal(gift.isJackpotAlert,false);assert.equal(gift.total,0);
+ assert.equal(evaluateJackpot({'Cang Kim Tinh Quân':2}).isJackpotAlert,false);
+ const triple=evaluateJackpot({'Cang Kim Tinh Quân':3});
+ assert.equal(triple.counts['Cang Kim Tinh Quân'],2);assert.equal(triple.isJackpotAlert,true);
+ assert.equal(evaluateJackpot({'Dương Tiễn':2,'Cang Kim Tinh Quân':1}).isCoreX2Plus1,false);
+ assert.equal(evaluateJackpot({'Dương Tiễn':2,'Cang Kim Tinh Quân':2}).isCoreX2Plus1,true);
+});

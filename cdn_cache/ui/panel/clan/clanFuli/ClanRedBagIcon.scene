@@ -1,1 +1,0 @@
-{"type":"Scene","props":{"width":720,"mouseThrough":true,"height":1600},"compId":2,"child":[{"type":"Image","props":{"y":1168,"x":648,"var":"imgRedBag","skin":"ui/com/common/cm_icon_hongbao.png","bottom":380,"anchorY":0.5,"anchorX":0.5},"compId":3}],"loadList":["ui/com/common/cm_icon_hongbao.png"],"loadList3D":[]}

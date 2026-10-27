@@ -1,0 +1,2 @@
+const {test}=require('node:test'),assert=require('node:assert/strict');const {serverAllowed:f}=require('../src/server_policy');
+test('waiting for S9 never starts S8 and permits S9 or a newer server',()=>{assert.equal(f({sid:'610088'},{minimumServerSid:'610089'}),false);assert.equal(f({sid:'610089'},{minimumServerSid:'610089'}),true);assert.equal(f({sid:'610090'},{minimumServerSid:'610089'}),true);assert.equal(f({sid:'610088'},{}),true);assert.throws(()=>f({sid:'610088'},{minimumServerSid:'invalid'}));});

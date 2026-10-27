@@ -1,0 +1,2 @@
+const {test}=require('node:test'),assert=require('node:assert/strict');const {progressLine:f}=require('../src/progress_log');
+test('winner flames are independent of giftcode completeness',()=>{assert(f({done:1,total:2,elapsedMs:1000,username:'x',responses:27,jackpot:true}).includes('⚠️ 🔥🔥 x'));assert(f({done:1,total:2,elapsedMs:1000,username:'x',responses:28,jackpot:true}).includes('✅ 🔥🔥 x'));assert(!f({done:1,total:2,elapsedMs:1000,username:'x',responses:28,jackpot:false}).includes('🔥'));});

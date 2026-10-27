@@ -1,51 +1,6 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.venv/
-venv/
-env/
-
-# Local machine overrides
-config_local.json
-
-# Local accounts database & winning results (avoids multi-machine merge conflicts)
-DAN_NICK_DA_QUAY*.json
-DAN_NICK_CU_LUU_TRU_FUNTAP*
-DAN_NICK_TRUNG_TUONG*
-DANH_SACH_NICK_D_AUTO*
-LICH_SU_QUAY*
-ai_state.json
-anh_nick_trung/
-*.zip
-
-# Logs, temp files, dev archives & APK build artifacts
+node_modules/
+python_v79/.venv/
+**/__pycache__/
 *.log
 *.tmp
-scratch/
-dev_scripts/
-standalone_android_project/
-*.apk
-!HacTayDu_Auto_Mod*.apk
-*.xapk
-*.idsig
-*.keystore
-cdn_cache/
-temp_*
-reshoot_*
-*_fixed.png
-kyda_*.png
-continuous_kyda_bot.py
-.synced_accounts.txt
-
-# Keys and certificates
-*.key
-*.pem
-
-# OS artifacts
 .DS_Store
-Thumbs.db
-desktop.ini
-jackpot_screenshots/
-state/
