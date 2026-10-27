@@ -10,10 +10,14 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import os
+import ssl
 import sys
 import time
 import urllib.request
 from pathlib import Path
+
+SSL_CTX = ssl._create_unverified_context()
 
 
 def main() -> None:
@@ -26,7 +30,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Tự động giám sát và bơm nick Hắc Tây Du 24/7")
     parser.add_argument(
         "--url",
-        default="http://100.94.81.101:8082/api/v1/inventory/hactaydu-webhook",
+        default="https://152-69-209-107.sslip.io/api/v1/inventory/hactaydu-webhook",
         help="URL Webhook của Bot",
     )
     parser.add_argument(
@@ -37,17 +41,21 @@ def main() -> None:
     parser.add_argument("--txt", default="DAN_NICK_TRUNG_TUONG.txt", help="File nick cần theo dõi")
     parser.add_argument("--photos", default="anh_nick_trung", help="Thư mục ảnh")
     parser.add_argument("--poll-interval", type=float, default=3.0, help="Số giây kiểm tra lại file")
-    parser.add_argument("--machine", default=None, help="Tên nguồn máy (vd: Máy 2, VPS 1, VPS 2)")
+    parser.add_argument("--machine", default=None, help="Tên nguồn máy (vd: D4, H0, VPS 1, VPS 2)")
     args = parser.parse_args()
 
-    machine_tag = args.machine
+    machine_tag = args.machine or os.environ.get("MACHINE_NAME")
     if not machine_tag:
-        try:
-            with open("config_local.json", "r", encoding="utf-8") as f:
-                cfg_local = json.load(f)
-                machine_tag = cfg_local.get("machine_id")
-        except Exception:
-            pass
+        for cfg_fn in ("config.json", "config_local.json"):
+            try:
+                with open(cfg_fn, "r", encoding="utf-8") as f:
+                    cfg_local = json.load(f)
+                    m = cfg_local.get("machine_id")
+                    if m:
+                        machine_tag = str(m).upper()
+                        break
+            except Exception:
+                pass
     if not machine_tag:
         import socket
         h = socket.gethostname().lower()
@@ -56,7 +64,7 @@ def main() -> None:
         elif "160" in h:
             machine_tag = "VPS 2"
         else:
-            machine_tag = "Máy 2"
+            machine_tag = "D4"
 
     txt_path = Path(args.txt)
     photos_dir = Path(args.photos)
@@ -251,7 +259,7 @@ def main() -> None:
                                 "Authorization": f"Bearer {args.secret}",
                             }
                             req = urllib.request.Request(target_url, data=data_bytes, headers=headers, method="POST")
-                            with urllib.request.urlopen(req, timeout=10) as resp:
+                            with urllib.request.urlopen(req, timeout=10, context=SSL_CTX) as resp:
                                 res_json = json.loads(resp.read().decode("utf-8"))
                                 status_code = resp.status
                                 print(f"   ✅ [BƠM THÀNH CÔNG MÁY {machine_tag.upper()}] Bot phản hồi: {res_json.get('status')} (HTTP {status_code})")

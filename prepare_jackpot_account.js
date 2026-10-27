@@ -228,6 +228,44 @@ async function prepareAndScreenshotJackpotAccount({
   let guideClearedToNull = false;
   let explicitGuideNull = false;
   const winningHeroIds=new Set();
+  if (targetHeroId) winningHeroIds.add(Number(targetHeroId));
+  const heroNameToIdMap = {
+    'dương tiễn': 1014,
+    'tôn ngộ không': 2014,
+    'ngộ không': 2014,
+    'na tra': 3014,
+    'đường tam tạng': 3010,
+    'đường tăng': 3010,
+    'cang kim tinh quân': 2015,
+    'cang kim': 2015,
+    'hồng hài nhi': 2012,
+    'trấn nguyên tử': 3012,
+    'trấn nguyên': 3012,
+    'ngọc diện hồ ly': 2013,
+    'ngọc diện': 2013,
+    'hằng nga': 1007,
+    'hoàng my': 3004,
+    'ngưu ma vương': 2006,
+    'ngưu ma': 2006,
+    'thiết phiến công chúa': 2007,
+    'thiết phiến': 2007,
+    'hàng long tôn giả': 3006,
+    'hàng long': 3006,
+    'trư bát giới': 2010,
+    'bát giới': 2010,
+    'lý tịnh': 3014,
+  };
+  if (Array.isArray(targetHeroNames)) {
+    for (const name of targetHeroNames) {
+      const nLow = String(name || '').toLowerCase();
+      for (const [kn, kid] of Object.entries(heroNameToIdMap)) {
+        if (nLow.includes(kn)) {
+          winningHeroIds.add(kid);
+          if (!targetHeroId) targetHeroId = kid;
+        }
+      }
+    }
+  }
   let heroBagTopIds=[],winnerPhotoOrdered=false;
   const matchTargetHero = (id, rawName, rawName2) => {
     const combinedRaw = String(rawName || '') + ' ' + String(rawName2 || '');
@@ -239,6 +277,14 @@ async function prepareAndScreenshotJackpotAccount({
     if (id === 2015 || norm.includes('cang kim') || norm.includes('cangkim') || combinedRaw.includes('亢金')) return 'Cang Kim Tinh Quân';
     if (id === 2012 || norm.includes('hong hai nhi') || norm.includes('hồng hài nhi') || combinedRaw.includes('红孩儿')) return 'Hồng Hài Nhi';
     if (id === 3012 || norm.includes('tran nguyen tu') || norm.includes('trấn nguyên tử') || combinedRaw.includes('镇元子')) return 'Trấn Nguyên Tử';
+    if (id === 2013 || norm.includes('ngoc dien') || norm.includes('ngọc diện') || combinedRaw.includes('玉面')) return 'Ngọc Diện Hồ Ly';
+    if (id === 1007 || norm.includes('hang nga') || norm.includes('hằng nga') || combinedRaw.includes('嫦娥')) return 'Hằng Nga';
+    if (id === 3004 || norm.includes('hoang my') || norm.includes('hoàng my') || combinedRaw.includes('黄眉')) return 'Hoàng My';
+    if (id === 2006 || norm.includes('nguu ma') || norm.includes('ngưu ma') || combinedRaw.includes('牛魔')) return 'Ngưu Ma Vương';
+    if (id === 2007 || norm.includes('thiet phien') || norm.includes('thiết phiến') || combinedRaw.includes('铁扇')) return 'Thiết Phiến Công Chúa';
+    if (id === 3006 || norm.includes('hang long') || norm.includes('hàng long') || combinedRaw.includes('降龙')) return 'Hàng Long Tôn Giả';
+    if (id === 2010 || norm.includes('bat gioi') || norm.includes('bát giới') || combinedRaw.includes('八戒')) return 'Trư Bát Giới';
+    if (norm.includes('ly tinh') || norm.includes('lý tịnh') || combinedRaw.includes('李靖') || combinedRaw.includes('托塔')) return 'Lý Tịnh';
     return null;
   };
   const campaignCheckpointPath=path.join(WORKSPACE,'state','tutorial-campaigns',`${sid}-${accId}.json`);
@@ -280,7 +326,7 @@ async function prepareAndScreenshotJackpotAccount({
           if (!guideClearedToNull) throw Error("TUTORIAL_PENDING");
           const n = baseSandbox.n;
           const allHeroes = Array.from(heroMap.values());
-          const validCoreIds = [1014, 2014, 2015, 3014, 3010, 2012, 3012];
+          const validCoreIds = [1014, 2014, 2015, 3014, 3010, 2012, 3012, 2013, 1007, 3004, 2006, 2007, 3006, 2010];
           const fiveStarHeroes = allHeroes.filter(
             (h) => h && (
               validCoreIds.includes(h.id) ||
@@ -1054,6 +1100,11 @@ if (require.main === module) {
     const serverName = getArg('--server-name') || '';
     const wsUrl = getArg('--ws-url') || '';
     const targetHeroId = Number(getArg('--hero') || 0);
+    const targetHeroName = getArg('--hero-name') || '';
+    const rawHeroNames = getArg('--hero-names') || '';
+    const targetHeroNames = targetHeroName
+      ? [targetHeroName]
+      : (rawHeroNames ? rawHeroNames.split(',').map((s) => s.trim()).filter(Boolean) : []);
 
     try {
       const res = await prepareAndScreenshotJackpotAccount({
@@ -1063,7 +1114,8 @@ if (require.main === module) {
         sid,
         serverName,
         wsUrl,
-        targetHeroId
+        targetHeroId,
+        targetHeroNames
       });
       console.log('RESULT_JSON_START:' + JSON.stringify(res) + ':RESULT_JSON_END');
       process.exit(0);

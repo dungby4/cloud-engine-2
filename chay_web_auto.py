@@ -2935,6 +2935,7 @@ async def _capture_winner_screenshot_async(res):
         run_kwargs["creationflags"] = 0x00004000  # BELOW_NORMAL_PRIORITY_CLASS
 
       hero_id = 0
+      hero_name_val = ""
       hero_map_name_to_id = {
           "dương tiễn": 1014,
           "ngộ không": 2014,
@@ -2947,12 +2948,19 @@ async def _capture_winner_screenshot_async(res):
           "trấn nguyên": 3012,
           "hằng nga": 1007,
           "hoàng my": 3004,
+          "ngọc diện": 2013,
+          "ngưu ma": 2006,
+          "thiết phiến": 2007,
+          "hàng long": 3006,
+          "bát giới": 2010,
+          "trư bát giới": 2010,
       }
       for th in (res.get("targetHeroes") or []):
         th_low = th.lower()
         for kn, kid in hero_map_name_to_id.items():
           if kn in th_low:
             hero_id = kid
+            hero_name_val = th
             break
         if hero_id:
           break
@@ -2967,6 +2975,7 @@ async def _capture_winner_screenshot_async(res):
           "--server-name", str(res.get("serverName") or ""),
           "--ws-url", str(res.get("wsUrl") or ""),
           "--hero", str(hero_id),
+          "--hero-name", hero_name_val,
       ]
       cp = await asyncio.to_thread(
           subprocess.run,

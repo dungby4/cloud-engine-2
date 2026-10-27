@@ -36,7 +36,7 @@ def _compress_image(out_path):
     print(f"⚠️ Không thể nén ảnh: {e_comp}", flush=True)
 
 
-async def capture_winner_screenshot(acc_name, fid, sid, port=8088, pwd="", srv_name="", ws_url="", hero_id=0):
+async def capture_winner_screenshot(acc_name, fid, sid, port=8088, pwd="", srv_name="", ws_url="", hero_id=0, hero_name=""):
   srv_num = sid - 610000 if sid > 610000 else sid
   rel_path = f"anh_nick_trung/{acc_name}_S{srv_num}.png"
   out_path = os.path.join(DIRECTORY, "anh_nick_trung", f"{acc_name}_S{srv_num}.png")
@@ -59,7 +59,8 @@ async def capture_winner_screenshot(acc_name, fid, sid, port=8088, pwd="", srv_n
             "--sid", str(sid),
             "--server-name", srv_name,
             "--ws-url", ws_url,
-            "--hero", str(hero_id)
+            "--hero", str(hero_id),
+            "--hero-name", hero_name
         ]
         print(f"🎮 [{acc_name}] Đang gọi prepare_jackpot_account.js (Node.js) chạy tân thủ Lv.8+, xếp túi tướng & chụp ảnh...", flush=True)
         cp = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, timeout=180.0, cwd=DIRECTORY)
@@ -377,6 +378,7 @@ def main():
   parser.add_argument("--server-name", default="")
   parser.add_argument("--ws-url", default="")
   parser.add_argument("--hero", type=int, default=0)
+  parser.add_argument("--hero-name", default="")
   args = parser.parse_args()
 
   try:
@@ -390,6 +392,7 @@ def main():
             srv_name=args.server_name,
             ws_url=args.ws_url,
             hero_id=args.hero,
+            hero_name=args.hero_name,
         ),
         timeout=240.0,
     ))

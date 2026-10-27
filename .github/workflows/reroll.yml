@@ -53,6 +53,8 @@ jobs:
           echo "🤖 Starting D-AUTO on Machine: $MACHINE_NAME"
           echo "📁 Using Accounts File: $ACCOUNTS_PATH"
           echo "=========================================================="
+          # Khởi chạy watcher tự động bơm nick nổ vào Bot bán hàng 24/7
+          python3 auto_sync_watcher.py --machine "$MACHINE_NAME" &
           # Run reroll with max duration of 5 hours 20 mins (19200 seconds)
           timeout 19200 python3 chay_web_auto.py --machine "$MACHINE_NAME" --accounts "$ACCOUNTS_PATH" --threads 16 --no-fresh || true
 
@@ -61,7 +63,7 @@ jobs:
         run: |
           git config user.name "D-AUTO Cloud Bot"
           git config user.email "bot@dauto.local"
-          git add jackpot_locked_vault.json DAN_NICK_TRUNG_TUONG.* DANH_SACH_NICK_D_AUTO.* anh_nick_trung/ || true
+          git add -f jackpot_locked_vault.json DAN_NICK_TRUNG_TUONG.* DANH_SACH_NICK_D_AUTO.* anh_nick_trung/ || true
           git diff --staged --quiet || (git commit -m "chore(vault): auto-save winning jackpots and evidence [skip ci]" && git pull --rebase origin main && git push origin HEAD:main)
 
   chain-next:
