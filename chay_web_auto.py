@@ -3022,41 +3022,47 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
           pass
         return None
 
+      def _get_reusable_account(target_sid_int):
+        with REROLL_LOCK:
+          if REROLL_STATE["stopRequested"]:
+            return None
+          pool_items = list(REUSABLE_POOL.items())
+        if scan_direction == "reverse":
+          pool_items.reverse()
+        with REROLL_LOCK:
+          if REROLL_STATE["stopRequested"]:
+            return None
+          for u_k, item in pool_items:
+            if u_k not in IN_FLIGHT_USERS and int(item.get("sid") or 0) < target_sid_int and item.get("id"):
+              if scan_parity in ("even", "odd"):
+                num_part = int(re.sub(r"\D", "", u_k) or 0)
+                if scan_parity == "even" and num_part % 2 != 0:
+                  continue
+                if scan_parity == "odd" and num_part % 2 != 1:
+                  continue
+              IN_FLIGHT_USERS.add(u_k)
+              return {
+                  "ok": True,
+                  "username": item["u"],
+                  "password": item["p"],
+                  "accountId": item["id"],
+                  "accessToken": "r",
+                  "reused": True,
+                  "prevSid": int(item.get("sid") or 0),
+              }
+        return None
+
       def _acquire_or_register_account(target_sid):
         """Nếu bật cờ --reuse (VPS 1 chẵn / VPS 2 lẻ): Quét trực tiếp kho nick cũ (~28,000 nick),
         KHÔNG bốc từ Account Hub để nhường 100% nick tươi từ GitHub Actions cho Máy 1 (Local)."""
         target_sid_int = int(target_sid)
 
         if not FRESH_ONLY:
-          with REROLL_LOCK:
-            if REROLL_STATE["stopRequested"]:
-              return None
-            pool_items = list(REUSABLE_POOL.items())
-          if scan_direction == "reverse":
-            pool_items.reverse()
-          with REROLL_LOCK:
-            if REROLL_STATE["stopRequested"]:
-              return None
-            for u_k, item in pool_items:
-              if u_k not in IN_FLIGHT_USERS and int(item.get("sid") or 0) < target_sid_int and item.get("id"):
-                if scan_parity in ("even", "odd"):
-                  num_part = int(re.sub(r"\D", "", u_k) or 0)
-                  if scan_parity == "even" and num_part % 2 != 0:
-                    continue
-                  if scan_parity == "odd" and num_part % 2 != 1:
-                    continue
-                IN_FLIGHT_USERS.add(u_k)
-                return {
-                    "ok": True,
-                    "username": item["u"],
-                    "password": item["p"],
-                    "accountId": item["id"],
-                    "accessToken": "r",
-                    "reused": True,
-                    "prevSid": int(item.get("sid") or 0),
-                }
+          reused = _get_reusable_account(target_sid_int)
+          if reused:
+            return reused
 
-        # Chế độ Mặc định (FRESH_ONLY) hoặc khi kho cũ đã quét hết 100% ở server hiện tại: Bốc nick tươi từ Account Hub
+        # Chế độ Mặc định (FRESH_ONLY): Ưu tiên bốc nick tươi từ Account Hub; nếu Hub tạm hết thì lấy kho phôi
         while True:
           with REROLL_LOCK:
             if REROLL_STATE["stopRequested"]:
@@ -3064,6 +3070,9 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
           hub_acc = _pop_account_from_hub()
           if hub_acc:
             return hub_acc
+          reused = _get_reusable_account(target_sid_int)
+          if reused:
+            return reused
           # Chờ ngắn 2.0s để đón mẻ nick tươi mới nhất từ GitHub Actions rót vào Hub
           time.sleep(2.0)
 
