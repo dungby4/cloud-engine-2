@@ -9,14 +9,77 @@ import re
 import sys
 import time
 
+import json
+import shutil
+
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 
 
-async def capture_winner_screenshot(acc_name, fid, sid, port=8088):
+def _compress_image(out_path):
+  try:
+    from PIL import Image
+    with Image.open(out_path) as im:
+      im_rgb = im.convert("RGB") if im.mode in ("RGBA", "LA", "P") else im
+      orig_w, orig_h = im_rgb.size
+      max_w = 540
+      if orig_w > max_w:
+        new_h = int(orig_h * (max_w / orig_w))
+        im_resized = im_rgb.resize((max_w, new_h), Image.Resampling.LANCZOS)
+      else:
+        im_resized = im_rgb
+      jpg_path = os.path.splitext(out_path)[0] + ".jpg"
+      im_resized.save(jpg_path, format="JPEG", quality=72, optimize=True, progressive=True)
+      p_im = im_resized.convert("P", palette=Image.ADAPTIVE, colors=256)
+      p_im.save(out_path, format="PNG", optimize=True)
+      print(f"📸 Đã lưu ảnh nén: JPG={os.path.getsize(jpg_path)//1024} KB | PNG={os.path.getsize(out_path)//1024} KB", flush=True)
+  except Exception as e_comp:
+    print(f"⚠️ Không thể nén ảnh: {e_comp}", flush=True)
+
+
+async def capture_winner_screenshot(acc_name, fid, sid, port=8088, pwd="", srv_name="", ws_url="", hero_id=0):
   srv_num = sid - 610000 if sid > 610000 else sid
   rel_path = f"anh_nick_trung/{acc_name}_S{srv_num}.png"
   out_path = os.path.join(DIRECTORY, "anh_nick_trung", f"{acc_name}_S{srv_num}.png")
   os.makedirs(os.path.dirname(out_path), exist_ok=True)
+  json_meta_path = os.path.join(DIRECTORY, "anh_nick_trung", f"{acc_name}_S{srv_num}.json")
+
+  # 1. Ưu tiên chạy qua prepare_jackpot_account.js (Node.js engine) để hoàn thành tân thủ Lv.8+, xếp 2 tướng nổ cạnh nhau ở Slot 1 & 2
+  prep_script = os.path.join(DIRECTORY, "prepare_jackpot_account.js")
+  if os.path.exists(prep_script):
+    try:
+      import subprocess
+      node_bin = shutil.which("node")
+      if node_bin:
+        cmd = [
+            node_bin,
+            prep_script,
+            "--acc", acc_name,
+            "--pwd", pwd,
+            "--fid", str(fid),
+            "--sid", str(sid),
+            "--server-name", srv_name,
+            "--ws-url", ws_url,
+            "--hero", str(hero_id)
+        ]
+        print(f"🎮 [{acc_name}] Đang gọi prepare_jackpot_account.js (Node.js) chạy tân thủ Lv.8+, xếp túi tướng & chụp ảnh...", flush=True)
+        cp = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, timeout=75.0, cwd=DIRECTORY)
+        if cp.stdout:
+          for l in cp.stdout.splitlines():
+            if "RESULT_JSON_START:" in l and ":RESULT_JSON_END" in l:
+              raw_j = l.split("RESULT_JSON_START:")[1].split(":RESULT_JSON_END")[0]
+              res_data = json.loads(raw_j)
+              shot_src = res_data.get("heroShotPath") or res_data.get("mainShotPath")
+              if shot_src and os.path.exists(shot_src):
+                shutil.copyfile(shot_src, out_path)
+                with open(json_meta_path, "w", encoding="utf-8") as jf:
+                  json.dump(res_data, jf, indent=2, ensure_ascii=False)
+                _compress_image(out_path)
+                print(f"✅ [{acc_name}] Hoàn tất chạy tân thủ (Lv.{res_data.get('roleLv', 8)}) & xếp túi tướng chụp ảnh thành công!", flush=True)
+                return rel_path
+            elif l.strip():
+              print(f"   [NodePrep] {l.strip()}", flush=True)
+    except Exception as e_node:
+      print(f"⚠️ [{acc_name}] prepare_jackpot_account.js gặp lỗi: {e_node}, chuyển sang Playwright nội bộ...", flush=True)
 
   try:
     from playwright.async_api import async_playwright
@@ -254,12 +317,25 @@ def main():
   parser.add_argument("--fid", required=True)
   parser.add_argument("--sid", type=int, required=True)
   parser.add_argument("--port", type=int, default=8088)
+  parser.add_argument("--pwd", default="")
+  parser.add_argument("--server-name", default="")
+  parser.add_argument("--ws-url", default="")
+  parser.add_argument("--hero", type=int, default=0)
   args = parser.parse_args()
 
   try:
     asyncio.run(asyncio.wait_for(
-        capture_winner_screenshot(args.acc, args.fid, args.sid, args.port),
-        timeout=120.0
+        capture_winner_screenshot(
+            args.acc,
+            args.fid,
+            args.sid,
+            args.port,
+            pwd=args.pwd,
+            srv_name=args.server_name,
+            ws_url=args.ws_url,
+            hero_id=args.hero,
+        ),
+        timeout=120.0,
     ))
   except Exception as e:
     print(f"⚠️ [capture_winner] Timeout hoặc lỗi: {e}", flush=True)

@@ -1,0 +1,431 @@
+[
+  {
+    "idx": 1132,
+    "username": "dungnt132",
+    "password": "ntdzfgqk8",
+    "funid": "386599093",
+    "accId": "720583757",
+    "phone": "0982462864",
+    "lockedAt": "2026-10-24T03:11:32.957158+00:00"
+  },
+  {
+    "idx": 1456,
+    "username": "dungnt456",
+    "password": "ntds8eycf",
+    "funid": "386605441",
+    "accId": "720638939",
+    "phone": "0989883501",
+    "lockedAt": "2026-10-24T03:38:45.671Z"
+  },
+  {
+    "idx": 3708,
+    "username": "ntdung3708",
+    "password": "ntdau36pc",
+    "funid": "386661842",
+    "accId": "721137862",
+    "lockedAt": "2026-10-24T04:15:45.281Z"
+  },
+  {
+    "idx": 5500,
+    "username": "ntdung5500",
+    "password": "ntdbb5had",
+    "funid": "386663390",
+    "accId": "721153302",
+    "lockedAt": "2026-10-24T04:39:09.522Z"
+  },
+  {
+    "idx": 7551,
+    "username": "ntdung7551",
+    "password": "dbykka6ca",
+    "funid": "386665113",
+    "accId": "721170457",
+    "lockedAt": "2026-10-24T05:14:01.229Z"
+  },
+  {
+    "idx": 6972,
+    "username": "ntdung6972",
+    "password": "dby2gbwpt",
+    "funid": "386664626",
+    "accId": "721165638",
+    "sold": true,
+    "reason": "Đã bán theo yêu cầu của người dùng",
+    "lockedAt": "2026-10-24T05:26:14.785Z"
+  },
+  {
+    "idx": 10,
+    "username": "dungby12",
+    "password": "ntdung12",
+    "phone": "",
+    "funid": "386574860",
+    "accId": "720440296",
+    "lockedAt": "2026-10-24T05:31:36.069Z"
+  },
+  {
+    "idx": 17,
+    "username": "dungby30",
+    "password": "ntdung12",
+    "phone": "",
+    "funid": "386579063",
+    "accId": "720474371",
+    "lockedAt": "2026-10-24T05:31:54.138Z"
+  },
+  {
+    "idx": 616,
+    "username": "dungby616",
+    "password": "tdmt9z25",
+    "funid": "386608530",
+    "accId": "720665587",
+    "phone": "0382341806",
+    "lockedAt": "2026-10-24T05:37:47.440Z"
+  },
+  {
+    "idx": 849,
+    "username": "dungby849",
+    "password": "tdu77fdk",
+    "funid": "386608702",
+    "accId": "720667092",
+    "phone": "0389480775",
+    "lockedAt": "2026-10-24T05:43:39.041Z"
+  },
+  {
+    "idx": 1173,
+    "username": "ntdung1173",
+    "password": "ntd6p9ny5",
+    "funid": "386659728",
+    "accId": "721116842",
+    "lockedAt": "2026-10-24T05:48:48.779Z"
+  },
+  {
+    "idx": 1329,
+    "username": "ntdung1329",
+    "password": "ntdcm5j4h",
+    "funid": "386659857",
+    "accId": "721118132",
+    "lockedAt": "2026-10-24T05:52:16.373Z"
+  },
+  {
+    "idx": 1991,
+    "username": "ntdung1991",
+    "password": "dgznejr9",
+    "funid": "386660409",
+    "accId": "721123647",
+    "lockedAt": "2026-10-24T06:08:08.184Z"
+  },
+  {
+    "username": "ntdung2394",
+    "accId": "721127017",
+    "password": "tdb8tnfr",
+    "reason": "Cang Kim Tinh Quân x2 + Dương Tiễn x1",
+    "lockedAt": "2026-10-24T06:25:31.340Z"
+  },
+  {
+    "username": "ntdung2309",
+    "accId": "721126358",
+    "password": "dnbgbfs2",
+    "reason": "Cang Kim Tinh Quân x2 + Đường Tam Tạng x1",
+    "lockedAt": "2026-10-24T06:25:31.344Z"
+  },
+  {
+    "username": "ntdung1717",
+    "accId": "721121359",
+    "password": "tdkzuf3v",
+    "reason": "Cang Kim Tinh Quân x2 + Na Tra x1",
+    "lockedAt": "2026-10-24T06:25:31.344Z"
+  },
+  {
+    "username": "dungnt743",
+    "accId": "720662429",
+    "password": "tdr6ce2w",
+    "reason": "Cang Kim Tinh Quân x3",
+    "lockedAt": "2026-10-24T06:25:31.344Z"
+  },
+  {
+    "username": "ntdung1242",
+    "accId": "721117414",
+    "password": "td32mjwa",
+    "reason": "Cang Kim Tinh Quân x2 + Na Tra x1",
+    "lockedAt": "2026-10-24T06:25:31.344Z"
+  },
+  {
+    "username": "ntdung2303",
+    "accId": "721126279",
+    "password": "dgr9dvmu",
+    "reason": "Cang Kim Tinh Quân x2 + Đường Tam Tạng x1",
+    "lockedAt": "2026-10-24T06:25:31.344Z"
+  },
+  {
+    "username": "ntdung325116",
+    "password": "ntdmt68fb",
+    "accId": "721930757",
+    "roleName": "HềNhu",
+    "roleUid": "61008118446",
+    "server": "Hỏa Diệm Sơn-S1",
+    "hero": "Dương Tiễn x2",
+    "lockedAt": "2026-10-24T08:07:51.630Z"
+  },
+  {
+    "idx": 313,
+    "username": "dungby313",
+    "password": "tdcxh2dh",
+    "funid": "386599310",
+    "accId": "720585618",
+    "phone": "0366527087",
+    "lockedAt": "2026-10-26T11:32:36.042Z"
+  },
+  {
+    "idx": 2178,
+    "username": "ntdung178",
+    "password": "dbyx3h3nb",
+    "funid": "386599193",
+    "accId": "720584621",
+    "phone": "0364081007",
+    "lockedAt": "2026-10-26T11:32:36.081Z"
+  },
+  {
+    "idx": 2219,
+    "username": "ntdung219",
+    "password": "dbyhtgy52",
+    "funid": "386600866",
+    "accId": "720598384",
+    "phone": "0964515175",
+    "lockedAt": "2026-10-26T11:32:36.101Z"
+  },
+  {
+    "idx": 884,
+    "username": "dungby884",
+    "password": "dbyeqx54w",
+    "funid": "386608747",
+    "accId": "720667499",
+    "phone": "0369414499",
+    "lockedAt": "2026-10-26T11:32:36.128Z"
+  },
+  {
+    "idx": 25,
+    "username": "dungby25",
+    "password": "ntdung12",
+    "funid": "386597104",
+    "accId": "720570592",
+    "phone": "0964889025",
+    "lockedAt": "2026-10-26T11:32:36.143Z"
+  },
+  {
+    "idx": 244,
+    "username": "dungby244",
+    "password": "dgymhb9w",
+    "funid": "386598218",
+    "accId": "720578017",
+    "phone": "0363072340",
+    "lockedAt": "2026-10-26T11:32:36.159Z"
+  },
+  {
+    "idx": 1112,
+    "username": "dungnt112",
+    "password": "dg7ba65e",
+    "funid": "386599051",
+    "accId": "720583352",
+    "phone": "0964602669",
+    "lockedAt": "2026-10-26T11:32:36.176Z"
+  },
+  {
+    "idx": 2297,
+    "username": "ntdung297",
+    "password": "dg8fkef9",
+    "funid": "386601136",
+    "accId": "720600802",
+    "phone": "0983576468",
+    "lockedAt": "2026-10-26T11:32:36.192Z"
+  },
+  {
+    "idx": 3896,
+    "username": "ntdung3896",
+    "password": "dndbu78b",
+    "funid": "386662001",
+    "accId": "721139466",
+    "lockedAt": "2026-10-26T11:32:36.208Z"
+  },
+  {
+    "idx": 4324,
+    "username": "ntdung4324",
+    "password": "td6nn79t",
+    "funid": "386662375",
+    "accId": "721143192",
+    "lockedAt": "2026-10-26T11:32:36.228Z"
+  },
+  {
+    "idx": 12005,
+    "username": "ntdung12005",
+    "password": "dbyeh2qg2",
+    "funid": "386668923",
+    "accId": "721208388",
+    "lockedAt": "2026-10-26T11:32:36.243Z"
+  },
+  {
+    "idx": 75,
+    "username": "dungby89",
+    "password": "ntdung12",
+    "phone": "",
+    "funid": "386590109",
+    "accId": "720531579",
+    "lockedAt": "2026-10-26T11:32:36.260Z"
+  },
+  {
+    "idx": 665,
+    "username": "dungby665",
+    "password": "dg6xt28k",
+    "funid": "386606830",
+    "accId": "720651643",
+    "phone": "0368413545",
+    "lockedAt": "2026-10-26T11:32:36.271Z"
+  },
+  {
+    "idx": 2440,
+    "username": "ntdung440",
+    "password": "dnswydv9",
+    "funid": "386605393",
+    "accId": "720638482",
+    "phone": "0395645118",
+    "lockedAt": "2026-10-26T11:32:36.291Z"
+  },
+  {
+    "idx": 8332,
+    "username": "ntdung8332",
+    "password": "dby9jvgxc",
+    "funid": "386665775",
+    "accId": "721177081",
+    "lockedAt": "2026-10-26T11:32:36.309Z"
+  },
+  {
+    "idx": 8678,
+    "username": "ntdung8678",
+    "password": "td6gnhnz",
+    "funid": "386666072",
+    "accId": "721180047",
+    "lockedAt": "2026-10-26T11:32:36.328Z"
+  },
+  {
+    "idx": 9886,
+    "username": "ntdung9886",
+    "password": "tdajf579",
+    "funid": "386667124",
+    "accId": "721190501",
+    "lockedAt": "2026-10-26T11:32:36.342Z"
+  },
+  {
+    "idx": 10237,
+    "username": "ntdung10237",
+    "password": "dgr34guw",
+    "funid": "386667420",
+    "accId": "721193421",
+    "lockedAt": "2026-10-26T11:32:36.353Z"
+  },
+  {
+    "idx": 11761,
+    "username": "ntdung11761",
+    "password": "dbyfh4pw9",
+    "funid": "386668718",
+    "accId": "721206341",
+    "lockedAt": "2026-10-26T11:32:36.372Z"
+  },
+  {
+    "idx": 2291,
+    "username": "ntdung2291",
+    "password": "dby6sdf7a",
+    "funid": "386660665",
+    "accId": "721126183",
+    "lockedAt": "2026-10-26T11:32:36.384Z"
+  },
+  {
+    "idx": 2930,
+    "username": "ntdung2930",
+    "password": "td8vvrcp",
+    "funid": "386661188",
+    "accId": "721131349",
+    "lockedAt": "2026-10-26T11:32:36.395Z"
+  },
+  {
+    "idx": 4118,
+    "username": "ntdung4118",
+    "password": "tdere8g2",
+    "funid": "386662197",
+    "accId": "721141407",
+    "lockedAt": "2026-10-26T11:32:36.412Z"
+  },
+  {
+    "username": "ntdung155174",
+    "password": "tdv4ndn8",
+    "accId": "721937998",
+    "uid": "61009336459",
+    "roleName": "ChuDạ",
+    "roleLv": 6,
+    "sid": "610093",
+    "serverName": "Bàn Tơ Động-S3",
+    "heroes5StarCount": 13,
+    "targetSummary": [
+      "Dương Tiễn x2"
+    ],
+    "lockedAt": "2026-10-26T12:47:33.089Z"
+  },
+  {
+    "username": "ntdung155244",
+    "password": "ntdm567n3",
+    "accId": "721946925",
+    "uid": "61009336509",
+    "roleName": "LưuSứ",
+    "roleLv": 2,
+    "sid": "610093",
+    "serverName": "Bàn Tơ Động-S3",
+    "heroes5StarCount": 12,
+    "targetSummary": [
+      "Na Tra x2"
+    ],
+    "lockedAt": "2026-10-26T12:47:33.093Z"
+  },
+  {
+    "username": "ntdung185741",
+    "password": "dg3ufszj",
+    "accId": "722017851",
+    "sid": "610095",
+    "serverName": "Bàn Tơ Động-S5",
+    "roleName": "VạnVũ",
+    "roleUid": "61009520906",
+    "roleLv": 8,
+    "hero": "Hồng Hài Nhi x2",
+    "lockedAt": "2026-10-26T16:41:50.167Z"
+  },
+  {
+    "username": "ntdung125235",
+    "password": "ntd6fc633",
+    "accId": "721944913",
+    "sid": "610095",
+    "serverName": "Bàn Tơ Động-S5",
+    "roleName": "HềCông",
+    "roleUid": "61009524449",
+    "roleLv": 11,
+    "hero": "Na Tra x2",
+    "lockedAt": "2026-10-26T17:48:46.897Z"
+  },
+  {
+    "username": "ntdung215596",
+    "password": "dgtdkf9x",
+    "accId": "721988203",
+    "sid": "610095",
+    "serverName": "Bàn Tơ Động-S5",
+    "roleName": "ÂuTuấn",
+    "roleUid": "61009527357",
+    "roleLv": 11,
+    "hero": "Tôn Ngộ Không x2",
+    "lockedAt": "2026-10-26T17:48:46.897Z"
+  },
+  {
+    "username": "ntdung96726571",
+    "password": "dgm65q3k",
+    "accId": "725331385",
+    "sid": "610095",
+    "serverName": "Bàn Tơ Động-S5",
+    "roleName": "TriệuSơn",
+    "roleUid": "61009529317",
+    "roleLv": 11,
+    "hero": "Tôn Ngộ Không x2",
+    "lockedAt": "2026-10-26T17:48:46.897Z"
+  }
+]

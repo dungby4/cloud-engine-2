@@ -47,3 +47,5 @@ continuous_kyda_bot.py
 .DS_Store
 Thumbs.db
 desktop.ini
+jackpot_screenshots/
+state/

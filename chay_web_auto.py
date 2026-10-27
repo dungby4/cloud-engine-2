@@ -71,28 +71,29 @@ CONFIG_FILE = os.path.join(DIRECTORY, "config.json")
 LOCAL_CONFIG_FILE = os.path.join(DIRECTORY, "config_local.json")
 
 DEFAULT_CONFIG = {
-    "machine_id": "m1",
+    "machine_id": "D4",
     "account_prefix": "htdvipa",
-    "fresh_only": True,
+    "fresh_only": False,
     "scan_direction": "auto",
     "parity": "auto",
-    "threads": 48,
+    "threads": 16,
     "port": 8088,
     "target_server": "latest",
     "min_copies": 2,
+    "accounts_file": "",
     "hub_url": "https://152-69-209-107.sslip.io/api/accounts/pop",
     "server_list_url": "http://100.68.248.22:8088/api/server_list",
     "gpm": {
-        "enabled": True,
+        "enabled": False,
         "api_base": "http://127.0.0.1:9495",
         "profile_id": "c9d4c0e0-299e-430b-a30f-4c6f56546fbe",
     },
     "sales_bot": {
-        "enabled": False,
+        "enabled": True,
         "webhook_url": "",
         "auth_token": "",
-        "telegram_bot_token": "",
-        "telegram_chat_id": "",
+        "telegram_bot_token": "8711883902:AAGeVLrl9QI_BnZIzuLF9lD7kq8ryOTllrY",
+        "telegram_chat_id": "7182418544",
     },
 }
 
@@ -115,17 +116,15 @@ def load_app_config():
     except Exception as e:
       print(f"⚠️ Lỗi đọc file config_local.json: {e}")
 
-  # Parse CLI overrides (hỗ trợ --machine 2, --prefix htd_m2, --port 8089, --threads 24, --webhook <url>)
+  # Parse CLI overrides (hỗ trợ --machine D4/H0, --accounts <file>, --port 8088, --threads 16, --webhook <url>)
   args = sys.argv[1:]
   has_reuse_cli = any(a in ("--reuse", "--quet-kho", "--no-fresh", "--kho") for a in args)
-  if not has_reuse_cli:
-    cfg["fresh_only"] = True
   for i, a in enumerate(args):
     if a in ("--machine", "-m") and i + 1 < len(args):
-      m_val = args[i + 1].strip()
-      cfg["machine_id"] = f"m{m_val}" if m_val.isdigit() else m_val
-      if cfg.get("account_prefix") in ("htd_vip", "", None):
-        cfg["account_prefix"] = f"htd_{cfg['machine_id']}"
+      cfg["machine_id"] = args[i + 1].strip()
+    elif a in ("--accounts", "-a") and i + 1 < len(args):
+      cfg["accounts_file"] = args[i + 1].strip()
+      cfg["fresh_only"] = False
     elif a in ("--prefix", "-p") and i + 1 < len(args):
       cfg["account_prefix"] = args[i + 1].strip()
     elif a == "--port" and i + 1 < len(args):
@@ -164,10 +163,25 @@ def load_app_config():
 
   # Environment variable overrides
   if os.environ.get("HTD_MACHINE"):
-    m_env = os.environ["HTD_MACHINE"].strip()
-    cfg["machine_id"] = f"m{m_env}" if m_env.isdigit() else m_env
-    if cfg.get("account_prefix") in ("htd_vip", "", None):
-      cfg["account_prefix"] = f"htd_{cfg['machine_id']}"
+    cfg["machine_id"] = os.environ["HTD_MACHINE"].strip()
+  if os.environ.get("MACHINE_NAME"):
+    cfg["machine_id"] = os.environ["MACHINE_NAME"].strip()
+  if os.environ.get("HTD_ACCOUNTS_FILE"):
+    cfg["accounts_file"] = os.environ["HTD_ACCOUNTS_FILE"].strip()
+    cfg["fresh_only"] = False
+  elif os.environ.get("ACCOUNTS_PATH"):
+    cfg["accounts_file"] = os.environ["ACCOUNTS_PATH"].strip()
+    cfg["fresh_only"] = False
+  if os.environ.get("TELEGRAM_BOT_TOKEN"):
+    cfg.setdefault("sales_bot", {})["telegram_bot_token"] = os.environ["TELEGRAM_BOT_TOKEN"].strip()
+    cfg["sales_bot"]["enabled"] = True
+  if os.environ.get("TELEGRAM_CHAT_ID"):
+    cfg.setdefault("sales_bot", {})["telegram_chat_id"] = os.environ["TELEGRAM_CHAT_ID"].strip()
+    cfg["sales_bot"]["enabled"] = True
+  if not cfg.get("sales_bot", {}).get("telegram_bot_token"):
+    cfg.setdefault("sales_bot", {})["telegram_bot_token"] = "8711883902:AAGeVLrl9QI_BnZIzuLF9lD7kq8ryOTllrY"
+    cfg["sales_bot"]["telegram_chat_id"] = "7182418544"
+    cfg["sales_bot"]["enabled"] = True
   if os.environ.get("HTD_PREFIX"):
     cfg["account_prefix"] = os.environ["HTD_PREFIX"].strip()
   if os.environ.get("HTD_SERVER_LIST_URL"):
@@ -456,8 +470,83 @@ def _fetch_montar_token(username, password):
   return "", ""
 
 
+def _fetch_funtap_credentials(username, password, acc_id=""):
+  """Xác thực chính thức qua Funtap MontarSDK -> checkLogin.php để lấy authkey, timestamp và userIp chuẩn 100%."""
+  u_s = (username or "").strip()
+  p_s = (password or "").strip()
+  if not u_s or not p_s:
+    return None
+
+  import hashlib
+  APP = "2a456b78cf5122cd9278ef24b4d7bfb9"
+  VERSION = "9.9.9.5"
+  device_id = hashlib.sha1(f"vn.ftg.hactaydu.{u_s}.device".encode("utf-8")).hexdigest()
+  form_body = urllib.parse.urlencode({
+      "email": u_s,
+      "password": p_s,
+      "device_id": device_id,
+      "fcm_token": "",
+      "package_name": "vn.ftg.hactaydu",
+      "appsflyer_id": "1729500000000-1234567890123456789",
+      "advertising_id": "00000000-0000-0000-0000-000000000000",
+  }).encode("utf-8")
+
+  endpoints = [
+      f"https://core.sdkmain.com/api/v1/apps/{APP}/{VERSION}/auth/login",
+      "https://core.sdkmain.com/api/v1/apps/f0d9c5e4b5d0de9bd966ed884c72e5ad/vi/auth/login",
+  ]
+  token = ""
+  real_acc_id = acc_id
+  for ep in endpoints:
+    try:
+      req = urllib.request.Request(
+          ep,
+          data=form_body,
+          headers={
+              "Content-Type": "application/x-www-form-urlencoded",
+              "Accept": "application/json",
+              "X-Request": APP,
+              "app-Version": VERSION,
+              "sdk-Version": "6.1.2",
+              "Language": "vi-VN",
+              "X-Android-Notch": "false",
+          },
+          method="POST",
+      )
+      with urllib.request.urlopen(req, timeout=8) as resp:
+        data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+        token = data.get("access_token") or (data.get("data") or {}).get("accessToken") or (data.get("data") or {}).get("access_token") or ""
+        acc_obj = (data.get("data") or {}).get("account") or {}
+        if acc_obj.get("account_id"):
+          real_acc_id = str(acc_obj["account_id"])
+        if token:
+          break
+    except Exception:
+      continue
+
+  if token:
+    try:
+      check_url = f"https://funtap-xy.ridvqqxa.com/funtap/checkLogin.php?access_token={token}&plt=android&appVersion={VERSION}"
+      req2 = urllib.request.Request(check_url, headers={"User-Agent": "Mozilla/5.0"})
+      with urllib.request.urlopen(req2, timeout=8) as resp2:
+        cd = json.loads(resp2.read().decode("utf-8", errors="ignore"))
+        if str(cd.get("code")) == "200" and cd.get("time") and cd.get("authkey"):
+          res_auth = {
+              "timestamp": str(cd["time"]),
+              "authKey": str(cd["authkey"]),
+              "userIp": str(cd.get("userIp") or "127.0.0.1"),
+              "accessToken": token,
+              "accountId": str(cd.get("openid") or real_acc_id or acc_id),
+          }
+          register_account_creds(res_auth["accountId"], u_s, p_s, token)
+          return res_auth
+    except Exception:
+      pass
+  return None
+
+
 def fetch_fresh_authkey(account_id="230519465", token="r", username="", password=""):
-  """Fetches fresh GLOBAL_TIMESTAMP, GLOBAL_AUTHKEY, and GLOBAL_USER_IP from Funtap igame.php (per-account cached for 45s)."""
+  """Fetches fresh GLOBAL_TIMESTAMP, GLOBAL_AUTHKEY, and GLOBAL_USER_IP from Funtap igame.php or checkLogin.php (per-account cached for 45s)."""
   if username or password or (token and token != "r"):
     register_account_creds(account_id, username, password, token)
   acc_s, u_s, p_s, tok_s = _lookup_account_creds(account_id, username, password, token)
@@ -474,6 +563,29 @@ def fetch_fresh_authkey(account_id="230519465", token="r", username="", password
             "accessToken": cached.get("tok") or tok_s,
             "accountId": cache_key,
         }
+
+  if u_s and p_s:
+    sdk_cred = _fetch_funtap_credentials(u_s, p_s, cache_key)
+    if sdk_cred:
+      ts_val = sdk_cred["timestamp"]
+      ak_val = sdk_cred["authKey"]
+      uip_val = sdk_cred["userIp"]
+      tok_s = sdk_cred["accessToken"]
+      cache_key = sdk_cred["accountId"]
+      with _AUTHKEY_LOCK:
+        _AUTHKEY_CACHE[cache_key] = {
+            "ts": ts_val,
+            "ak": ak_val,
+            "uip": uip_val,
+            "tok": tok_s,
+            "valid_acc": True,
+            "exp": time.time() + 45.0,
+        }
+      with STATE_LOCK:
+        AI_STATE["timestamp"] = ts_val
+        AI_STATE["authKey"] = ak_val
+        AI_STATE["userIp"] = uip_val
+      return sdk_cred
 
   def _call_igame(q_id, q_tk):
     url = (
@@ -1849,15 +1961,67 @@ def _sync_winners_from_txt():
 
 
 def _load_and_migrate_vault():
-  """Đọc DAN_NICK_DA_QUAY.json (hỗ trợ cả định dạng cũ 13 trường lẫn định dạng mới 4 trường u/p/id/sid),
-  loại bỏ các nick đã trúng 2x khỏi kho phôi tái sử dụng, và đồng bộ danh sách trúng sang dạng 1 dòng + CSV."""
+  """Đọc DAN_NICK_DA_QUAY.json hoặc file danh sách tài khoản được chỉ định,
+  loại bỏ các nick đã trúng 2x và nick trong jackpot_locked_vault.json khỏi kho phôi tái sử dụng."""
   winners = _sync_winners_from_txt()
   winner_users = {w["account"] for w in winners if w.get("account")}
   winner_ids = {str(w["funtapId"]) for w in winners if w.get("funtapId")}
   for w_u in winner_users:
     KNOWN_SAVED_WINNERS.add(w_u)
 
+  vault_lock_file = os.path.join(DIRECTORY, "jackpot_locked_vault.json")
+  if os.path.exists(vault_lock_file):
+    try:
+      with open(vault_lock_file, "r", encoding="utf-8") as vf:
+        v_list = json.load(vf)
+      if isinstance(v_list, list):
+        for item in v_list:
+          u = str(item.get("username") or item.get("account") or "").strip()
+          fid = str(item.get("accId") or item.get("funtapId") or "").strip()
+          if u:
+            winner_users.add(u)
+            KNOWN_SAVED_WINNERS.add(u)
+          if fid:
+            winner_ids.add(fid)
+    except Exception:
+      pass
+
   pool = {}
+
+  # 1. Nạp từ file tài khoản được cấu hình (--accounts hoặc env ACCOUNTS_PATH / HTD_ACCOUNTS_FILE)
+  acc_file = APP_CONFIG.get("accounts_file")
+  if not acc_file:
+    for cand in ("accounts_d4.json", "accounts_h0.json", "accounts.json"):
+      c_path = os.path.join(DIRECTORY, cand)
+      if os.path.exists(c_path):
+        acc_file = c_path
+        break
+
+  if acc_file and os.path.exists(acc_file):
+    try:
+      with open(acc_file, "r", encoding="utf-8") as af:
+        loaded_accs = json.load(af)
+      if isinstance(loaded_accs, list):
+        for item in loaded_accs:
+          if not isinstance(item, dict):
+            continue
+          u = str(item.get("u") or item.get("username") or item.get("account") or "").strip()
+          p = str(item.get("p") or item.get("password") or "tphtd123").strip()
+          fid = str(item.get("id") or item.get("accId") or item.get("funtapId") or "").strip()
+          sid = int(item.get("sid") or item.get("serverId") or 0)
+          if not u or not fid:
+            continue
+          if u in winner_users or fid in winner_ids:
+            continue
+          register_account_creds(fid, u, p, "r")
+          prev = pool.get(u)
+          if not prev or sid > prev["sid"]:
+            pool[u] = {"u": u, "p": p, "id": fid, "sid": sid}
+        print(f"📦 [Nạp Danh Sách Tài Khoản] Đã nạp thành công {len(pool)} nick từ file '{os.path.basename(acc_file)}' (loại bỏ nick trúng/đã khóa)!", flush=True)
+    except Exception as e:
+      print(f"⚠️ Lỗi đọc file danh sách tài khoản '{acc_file}': {e}", flush=True)
+
+  # 2. Bổ sung từ kho DAN_NICK_DA_QUAY.json
   if os.path.exists(REROLL_VAULT_FILE):
     try:
       with open(REROLL_VAULT_FILE, "r", encoding="utf-8") as rf:
@@ -1876,6 +2040,7 @@ def _load_and_migrate_vault():
             continue
           if u in winner_users or fid in winner_ids:
             continue
+          register_account_creds(fid, u, p, "r")
           prev = pool.get(u)
           if not prev or sid > prev["sid"]:
             pool[u] = {"u": u, "p": p, "id": fid, "sid": sid}
@@ -2704,8 +2869,51 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
 SCREENSHOT_SEMAPHORE = None
 
 
+def _lock_jackpot_vault(payload, char_nm="", char_uid="", char_lv=8):
+  vault_file = os.path.join(DIRECTORY, "jackpot_locked_vault.json")
+  vault = []
+  if os.path.exists(vault_file):
+    try:
+      with open(vault_file, "r", encoding="utf-8") as f:
+        vault = json.load(f)
+      if not isinstance(vault, list):
+        vault = []
+    except Exception:
+      vault = []
+
+  acc_u = str(payload.get("account") or "")
+  acc_fid = str(payload.get("funtap_id") or "")
+  m_id = str(APP_CONFIG.get("machine_id") or MACHINE_ID or "D4").upper()
+  if m_id.startswith("M") and len(m_id) > 1 and m_id[1:].isdigit():
+    m_id = "D4" if m_id == "M1" else "H0"
+
+  exists = any(str(x.get("username") or x.get("account") or "") == acc_u for x in vault)
+  if not exists:
+    vault.append({
+        "username": acc_u,
+        "password": payload.get("password") or "",
+        "accId": acc_fid,
+        "sid": str(payload.get("server_id") or ""),
+        "serverName": payload.get("server_name") or "",
+        "roleName": char_nm or acc_u,
+        "roleUid": char_uid or "",
+        "roleLv": int(char_lv),
+        "hero": payload.get("jackpot_type") or "",
+        "machine": m_id,
+        "lockedAt": time.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+    })
+    try:
+      tmp_v = vault_file + ".tmp"
+      with open(tmp_v, "w", encoding="utf-8") as vf:
+        json.dump(vault, vf, indent=2, ensure_ascii=False)
+      os.replace(tmp_v, vault_file)
+      print(f"🔒 [Két Sắt Bảo Vệ] Đã khóa vĩnh viễn nick {acc_u} (Máy: {m_id}) vào jackpot_locked_vault.json!", flush=True)
+    except Exception as e:
+      print(f"⚠️ Lỗi lưu jackpot_locked_vault.json: {e}", flush=True)
+
+
 async def _capture_winner_screenshot_async(res):
-  """Tự động gọi capture_winner.py trong tiến trình con độc lập để chạy tân thủ Lv.5+ và chụp ảnh bằng chứng (100% không nghẽn luồng cày)."""
+  """Tự động gọi capture_winner.py trong tiến trình con độc lập để chạy tân thủ Lv.8+, xếp túi tướng và chụp ảnh."""
   global SCREENSHOT_SEMAPHORE
   if SCREENSHOT_SEMAPHORE is None:
     SCREENSHOT_SEMAPHORE = asyncio.Semaphore(1)
@@ -2723,9 +2931,19 @@ async def _capture_winner_screenshot_async(res):
       run_kwargs = {}
       if sys.platform == "win32":
         run_kwargs["creationflags"] = 0x00004000  # BELOW_NORMAL_PRIORITY_CLASS
+      cmd = [
+          sys.executable, script_path,
+          "--acc", acc_name,
+          "--fid", fid,
+          "--sid", str(sid),
+          "--port", str(PORT),
+          "--pwd", str(res.get("password") or ""),
+          "--server-name", str(res.get("serverName") or ""),
+          "--ws-url", str(res.get("wsUrl") or ""),
+      ]
       cp = await asyncio.to_thread(
           subprocess.run,
-          [sys.executable, script_path, "--acc", acc_name, "--fid", fid, "--sid", str(sid), "--port", str(PORT)],
+          cmd,
           capture_output=True,
           text=True,
           encoding="utf-8",
@@ -2737,6 +2955,19 @@ async def _capture_winner_screenshot_async(res):
         for line in cp.stdout.splitlines():
           if line.strip():
             print(f"   [SnapSub] {line.strip()}", flush=True)
+
+      meta_file = os.path.join(DIRECTORY, "anh_nick_trung", f"{acc_name}_S{srv_num}.json")
+      if os.path.exists(meta_file):
+        try:
+          with open(meta_file, "r", encoding="utf-8") as mf:
+            meta = json.load(mf)
+            res["level"] = int(meta.get("roleLv") or res.get("level") or 8)
+            res["char_name"] = meta.get("roleName") or res.get("char_name") or acc_name
+            res["role_uid"] = meta.get("roleUid") or res.get("role_uid") or ""
+            res["diamonds"] = meta.get("zuanshiLeft") or res.get("diamonds") or 3820
+        except Exception:
+          pass
+
       if os.path.exists(out_path) and os.path.getsize(out_path) > 10000:
         return rel_path
       return ""
@@ -2761,6 +2992,7 @@ async def _push_winner_to_sales_bot_async(res):
   snap_path = res.get("screenshot") or ""
   photo_b64 = None
   photo_fn = os.path.basename(snap_path) if snap_path else f"{res.get('account')}.jpg"
+  target_img = ""
   if snap_path:
     full_snap = os.path.join(DIRECTORY, snap_path) if not os.path.isabs(snap_path) else snap_path
     jpg_snap = os.path.splitext(full_snap)[0] + ".jpg"
@@ -2806,7 +3038,7 @@ async def _push_winner_to_sales_bot_async(res):
       "funtap_id": str(res.get("funtapId") or ""),
       "server_id": int(res.get("serverId") or 0),
       "server_name": res.get("serverName") or "",
-      "level": int(res.get("level") or 1),
+      "level": int(res.get("level") or 8),
       "jackpot_type": ", ".join(res.get("targetHeroes") or []) or "2x Thần Tướng",
       "total_5star": len(res.get("heroes5Star") or []),
       "target_heroes": res.get("targetHeroes") or [],
@@ -2843,26 +3075,70 @@ async def _push_winner_to_sales_bot_async(res):
       except Exception as e:
         print(f"⚠️ [Bot Bán Hàng] Lỗi bơm nick {res.get('account')} lên Webhook: {e}", flush=True)
 
+    m_id = str(APP_CONFIG.get("machine_id") or MACHINE_ID or "D4").upper()
+    if m_id.startswith("M") and len(m_id) > 1 and m_id[1:].isdigit():
+      m_id = "D4" if m_id == "M1" else "H0"
+
+    char_nm = str(res.get("char_name") or payload.get("char_name") or payload["account"])
+    char_uid = str(res.get("role_uid") or payload.get("role_uid") or f"{payload['server_id']}{payload['funtap_id'][-5:]}")
+    char_lv = int(res.get("level") or payload.get("level") or 8)
+    char_dm = int(res.get("diamonds") or payload.get("diamonds") or 3820)
+
     if tg_token and tg_chat:
       try:
-        tg_url = f"https://api.telegram.org/bot{tg_token}/sendMessage"
         srv_title = str(payload['server_name']).replace("[", "").replace("]", "").replace(" Mới Nhất", "")
-        summary_line = f"{srv_title} ({payload['server_id']}) -> {payload['jackpot_type']} | Code: {payload['codes_claimed']} | Ngọc=3820 | Tổng 5★={payload['total_5star']} 🔥🔥🔥🔥🔥🔥"
-        tg_text = (
-            f"🎉 <b>[NỔ NICK 2x MÁY {MACHINE_ID.upper()}]</b>\n\n"
-            f"🔥 <b>{summary_line}</b>\n\n"
-            f"🔑 <b>TK:</b> <code>{payload['account']}</code>\n"
-            f"🔒 <b>MK:</b> <code>{payload['password']}</code>\n"
-            f"🆔 <b>UID:</b> <code>{payload['funtap_id']}</code>\n"
-            f"⭐ <b>Đội hình 5★:</b> {', '.join(payload.get('heroes_5star', []))}\n"
-            f"⏰ <b>Thời gian:</b> {payload['time']}"
+        tg_caption = (
+            f"🔥🔥 <b>[NỔ X2 NÒNG CỐT & ĐÃ HOÀN THÀNH TÂN THỦ (Lv.8+)]</b>\n"
+            f"<b>Máy:</b> {m_id}\n"
+            f"🌐 <b>Server:</b> {srv_title} ({payload['server_id']})\n"
+            f"🔥 <b>Tướng nổ:</b> {payload['jackpot_type']} (Tổng 5★: {payload['total_5star']})\n"
+            f"👤 <b>TK:</b> <code>{payload['account']}</code> | <b>MK:</b> <code>{payload['password']}</code>\n"
+            f"🆔 <b>UID:</b> <code>{char_uid}</code> | <b>AccID:</b> <code>{payload['funtap_id']}</code>\n"
+            f"🎭 <b>Nhân vật:</b> {char_nm} (Lv.{char_lv}) | <b>Ngọc:</b> {char_dm} 💎\n"
+            f"🔒 <b>Đã khóa két bảo vệ & rút vĩnh viễn khỏi kho reroll!</b>"
         )
-        tg_data = json.dumps({"chat_id": tg_chat, "text": tg_text, "parse_mode": "HTML"}).encode("utf-8")
-        req_tg = urllib.request.Request(tg_url, data=tg_data, headers={"Content-Type": "application/json"}, method="POST")
-        with urllib.request.urlopen(req_tg, timeout=6) as resp_tg:
-          print(f"🤖 [Telegram Bot] Đã gửi thông báo nick {res.get('account')} vào nhóm Telegram!", flush=True)
+
+        sent_photo = False
+        target_img_path = target_img if (target_img and os.path.exists(target_img)) else ""
+        if not target_img_path and snap_path:
+          full_s = os.path.join(DIRECTORY, snap_path) if not os.path.isabs(snap_path) else snap_path
+          if os.path.exists(full_s):
+            target_img_path = full_s
+
+        if target_img_path and os.path.exists(target_img_path):
+          try:
+            import uuid
+            boundary = f"----WebKitFormBoundary{uuid.uuid4().hex}"
+            with open(target_img_path, "rb") as img_f:
+              img_bytes = img_f.read()
+            body_parts = []
+            for k, v in {"chat_id": tg_chat, "caption": tg_caption, "parse_mode": "HTML"}.items():
+              body_parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n".encode("utf-8"))
+            body_parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"photo\"; filename=\"{os.path.basename(target_img_path)}\"\r\nContent-Type: image/png\r\n\r\n".encode("utf-8"))
+            body_parts.append(img_bytes)
+            body_parts.append(f"\r\n--{boundary}--\r\n".encode("utf-8"))
+            post_body = b"".join(body_parts)
+
+            tg_photo_url = f"https://api.telegram.org/bot{tg_token}/sendPhoto"
+            req_tg = urllib.request.Request(tg_photo_url, data=post_body, headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}, method="POST")
+            with urllib.request.urlopen(req_tg, timeout=15) as resp_tg:
+              print(f"🤖 [Telegram Bot] Đã gửi ẢNH TÚI TƯỚNG nick {res.get('account')} vào Telegram thành công!", flush=True)
+              sent_photo = True
+          except Exception as e_p:
+            print(f"⚠️ [Telegram Bot] Lỗi gửi ảnh ({e_p}), chuyển sang gửi tin nhắn văn bản...", flush=True)
+
+        if not sent_photo:
+          tg_data = json.dumps({"chat_id": tg_chat, "text": tg_caption, "parse_mode": "HTML"}).encode("utf-8")
+          req_tg = urllib.request.Request(f"https://api.telegram.org/bot{tg_token}/sendMessage", data=tg_data, headers={"Content-Type": "application/json"}, method="POST")
+          with urllib.request.urlopen(req_tg, timeout=10) as resp_tg:
+            print(f"🤖 [Telegram Bot] Đã gửi thông báo nick {res.get('account')} vào Telegram!", flush=True)
       except Exception as e:
-        print(f"⚠️ [Telegram Bot] Gửi tin nhắn thất bại: {e}", flush=True)
+        print(f"⚠️ [Telegram Bot] Gửi thông báo thất bại: {e}", flush=True)
+
+    try:
+      _lock_jackpot_vault(payload, char_nm, char_uid, char_lv)
+    except Exception as e_l:
+      print(f"⚠️ Lỗi khóa két: {e_l}", flush=True)
 
   try:
     await asyncio.to_thread(_do_http_push)
