@@ -62,7 +62,7 @@ async def capture_winner_screenshot(acc_name, fid, sid, port=8088, pwd="", srv_n
             "--hero", str(hero_id)
         ]
         print(f"🎮 [{acc_name}] Đang gọi prepare_jackpot_account.js (Node.js) chạy tân thủ Lv.8+, xếp túi tướng & chụp ảnh...", flush=True)
-        cp = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, timeout=75.0, cwd=DIRECTORY)
+        cp = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, timeout=180.0, cwd=DIRECTORY)
         if cp.stdout:
           for l in cp.stdout.splitlines():
             if "RESULT_JSON_START:" in l and ":RESULT_JSON_END" in l:
@@ -215,64 +215,120 @@ async def capture_winner_screenshot(acc_name, fid, sid, port=8088, pwd="", srv_n
         except Exception as err_tan_thu:
           print(f"⚠️ [{acc_name}] Lỗi khi chạy tân thủ: {err_tan_thu}", flush=True)
 
-        # 2. Chờ thanh điều hướng chính
-        for _ in range(50):
-          await asyncio.sleep(0.5)
+        # 2. Chờ game tải xong tài nguyên CDN và hiển thị thanh điều hướng chính
+        ready = False
+        print(f"⏳ [{acc_name}] Đang chờ game nạp xong CDN vào giao diện chính...", flush=True)
+        for _ in range(120):
+          await asyncio.sleep(1.0)
           ready = await page.evaluate("() => typeof bt !== 'undefined' && bt.getInstance && bt.getInstance().inStage && bt.getInstance().inStage()")
           if ready:
             break
 
-        # 3. Sort ưu tiên tướng đỏ & mở tab Thần Tướng
-        await page.evaluate("""() => {
-          if (typeof at !== 'undefined') at.data = null;
-          if (typeof De !== 'undefined') De.isInCombat = false;
-          if (window.tt) {
-            var priorityWeight = function(h) {
-              if (!h) return 0;
-              var reds = [
-                "Dương Tiễn", "Ngộ Không", "Na Tra", "Lý Tịnh", "Đường Tam Tạng", "Đường Tăng",
-                "Trấn Nguyên", "Ngưu Ma", "Hồng Hài Nhi", "Hàng Long", "Trư Bát Giới",
-                "Hằng Nga", "Thiết Phiến", "Hoàng My", "Ngọc Diện"
-              ];
-              var hName = h.name || "";
-              for (var i = 0; i < reds.length; i++) {
-                if (hName.indexOf(reds[i]) >= 0) return 100000 - i * 500;
-              }
-              if (h.id === 1014) return 100000;
-              if (h.id === 2014) return 95000;
-              if (h.id === 3014) return 90000;
-              if (h.id === 3010) return 80000;
-              return (h.star || 0) * 1000 + (h.lv || 1);
-            };
-            window.tt.combatheroSort = function(a, b) {
-              return priorityWeight(b) - priorityWeight(a);
-            };
-          }
-          if (typeof bt !== 'undefined' && bt.getInstance) {
-            try { bt.getInstance().onTab(1); } catch(e) {}
-          }
-        }""")
+        if not ready:
+          print(f"⚠️ [{acc_name}] Game chưa load xong CDN sau 120s (vẫn ở màn hình tải), hủy chụp ảnh để tránh ảnh lỗi!", flush=True)
+          return ""
 
-        for _ in range(30):
-          await asyncio.sleep(0.5)
-          inst_ready = await page.evaluate("() => typeof si !== 'undefined' && si.getInstance && si.getInstance().inStage && si.getInstance().inStage()")
-          if inst_ready:
+        # 3. Mở tab Thần Tướng và đảm bảo thẻ tướng đã load
+        print(f"📦 [{acc_name}] Đang mở Túi Thần Tướng và sắp xếp tướng nổ cạnh nhau...", flush=True)
+        bag_ready = False
+        for attempt in range(1, 35):
+          await page.evaluate("""() => {
+            if (typeof at !== 'undefined') at.data = null;
+            if (typeof De !== 'undefined') De.isInCombat = false;
+            try {
+              if (window.bt && bt.getInstance) {
+                var mb = bt.getInstance();
+                if (window.ye && !mb.index2Panel[0]) mb.register(0, ye.getInstance());
+                if (window.si) mb.register(1, si.getInstance());
+                mb.onTab(1);
+              }
+            } catch(e) {}
+            try {
+              if (window.si && si.getInstance) {
+                var s = si.getInstance();
+                s.open(0);
+                if (typeof s.reflushHero === 'function') s.reflushHero();
+              }
+            } catch(e) {}
+          }""")
+          await asyncio.sleep(1.0)
+
+          bag_ready = await page.evaluate("""() => {
+            try {
+              if (window.si && si.getInstance) {
+                var s = si.getInstance();
+                if (s && ((typeof s.inStage === 'function' && s.inStage()) || (s.ui && (s.ui.inStage ? s.ui.inStage() : !!s.ui.parent)))) {
+                  var list = s.ui && s.ui.cardList && s.ui.cardList.list;
+                  if (list) {
+                    var arr = list.array || list.dataSource;
+                    return !!(arr && arr.length > 0);
+                  }
+                }
+              }
+            } catch(e) {}
+            return false;
+          }""")
+          if bag_ready:
             break
 
-        await asyncio.sleep(2.5)
-        await page.evaluate("""() => {
+        if not bag_ready:
+          print(f"⚠️ [{acc_name}] Túi Thần Tướng chưa mở được thẻ tướng sau 35s, hủy chụp ảnh để tránh ảnh lỗi!", flush=True)
+          return ""
+
+        # 4. Sắp xếp 2 tướng jackpot đứng kề nhau ở Slot 1 & 2 hàng đầu
+        await page.evaluate("""(targetId) => {
           try {
-            if (typeof si !== 'undefined' && si.getInstance && si.getInstance().setList) {
-              si.getInstance().setList(0, 0);
+            var comp = window.si && window.si.getInstance && window.si.getInstance().ui && window.si.getInstance().ui.cardList && window.si.getInstance().ui.cardList.list;
+            if (comp) {
+              var rows = comp.dataSource || comp.array;
+              if (Array.isArray(rows) && rows.length > 0) {
+                var reds = [
+                  "Dương Tiễn", "Ngộ Không", "Na Tra", "Lý Tịnh", "Đường Tam Tạng", "Đường Tăng",
+                  "Trấn Nguyên", "Ngưu Ma", "Hồng Hài Nhi", "Hàng Long", "Trư Bát Giới",
+                  "Hằng Nga", "Thiết Phiến", "Hoàng My", "Ngọc Diện"
+                ];
+                var priorityWeight = function(h) {
+                  if (!h) return 0;
+                  var hId = h.id || (h.heroSimple && h.heroSimple.id) || 0;
+                  if (targetId && hId === targetId) return 2000000;
+                  var hName = h.name || (h.heroSimple && h.heroSimple.name) || "";
+                  for (var i = 0; i < reds.length; i++) {
+                    if (hName.indexOf(reds[i]) >= 0) return 1000000 - i * 1000;
+                  }
+                  if (hId === 1014) return 990000;
+                  if (hId === 2014) return 980000;
+                  if (hId === 3014) return 970000;
+                  if (hId === 3010) return 960000;
+                  return (h.star || 0) * 1000 + (h.lv || 1);
+                };
+                rows.sort(function(a, b) {
+                  return priorityWeight(b) - priorityWeight(a);
+                });
+                comp.array = rows;
+                comp.dataSource = rows;
+                if (comp.cells && comp.renderHandler) {
+                  for (var i = 0; i < Math.min(6, rows.length); i++) {
+                    if (comp.cells[i]) comp.renderHandler.runWith([comp.cells[i], i]);
+                  }
+                }
+                if (comp.refresh) comp.refresh();
+                if (comp.scrollTo) comp.scrollTo(0);
+              }
             }
           } catch(e) {}
           if (window.HacTayDuAuto) {
             if (window.HacTayDuAuto.layaMenu) window.HacTayDuAuto.layaMenu.visible = false;
             if (window.HacTayDuAuto.layaBtn) window.HacTayDuAuto.layaBtn.visible = false;
           }
-        }""")
-        await asyncio.sleep(0.8)
+        }""", hero_id)
+
+        # Chờ 3.5s để ảnh render đầy đủ avatar
+        await asyncio.sleep(3.5)
         await page.screenshot(path=out_path)
+
+        if not os.path.exists(out_path) or os.path.getsize(out_path) < 15000:
+          print(f"⚠️ [{acc_name}] Ảnh chụp không hợp lệ (< 15 KB), hủy ảnh!", flush=True)
+          return ""
 
         # Nén ảnh JPG siêu gọn
         try:
@@ -290,7 +346,7 @@ async def capture_winner_screenshot(acc_name, fid, sid, port=8088, pwd="", srv_n
             im_resized.save(jpg_path, format="JPEG", quality=72, optimize=True, progressive=True)
             p_im = im_resized.convert("P", palette=Image.ADAPTIVE, colors=256)
             p_im.save(out_path, format="PNG", optimize=True)
-            print(f"📸 [{acc_name}] Đã lưu ảnh: JPG={os.path.getsize(jpg_path)//1024} KB | PNG={os.path.getsize(out_path)//1024} KB", flush=True)
+            print(f"📸 [{acc_name}] Đã lưu ảnh Túi Thần Tướng: JPG={os.path.getsize(jpg_path)//1024} KB | PNG={os.path.getsize(out_path)//1024} KB", flush=True)
         except Exception as e_compress:
           print(f"⚠️ [{acc_name}] Không thể nén ảnh: {e_compress}", flush=True)
 
@@ -335,7 +391,7 @@ def main():
             ws_url=args.ws_url,
             hero_id=args.hero,
         ),
-        timeout=120.0,
+        timeout=240.0,
     ))
   except Exception as e:
     print(f"⚠️ [capture_winner] Timeout hoặc lỗi: {e}", flush=True)

