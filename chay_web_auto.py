@@ -2268,9 +2268,9 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
   claims = GiftcodeClaims()
   if getattr(claims, "timeout", 0.0) >= 1.0:
     claims.min_interval = 0.20
-    claims.timeout = 1.05
-    claims.reconnect_on_timeout = False
-    claims.max_attempts = 1
+    claims.timeout = 1.25
+    claims.reconnect_on_timeout = True
+    claims.max_attempts = 2
   confirmed_codes = claims.confirmed
 
   def record_packet(resp):
@@ -2426,7 +2426,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
         is_prod_claims = getattr(claims, "timeout", 0.0) >= 1.0
         try:
           if is_prod_claims:
-            claims.max_attempts = 1
+            claims.max_attempts = 2
           await claims.claim_all(
               REROLL_GIFTCODES, send_code, reconnect_for_codes,
               lambda: REROLL_STATE["stopRequested"], code_progress,
@@ -2436,7 +2436,7 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
 
         for _sweep_round in range(2):
           missing_codes = [c for c in REROLL_GIFTCODES if c not in confirmed_codes]
-          if not missing_codes or (is_prod_claims and len(confirmed_codes) >= 25) or REROLL_STATE["stopRequested"]:
+          if not missing_codes or REROLL_STATE["stopRequested"]:
             break
           try:
             await reconnect_for_codes()
@@ -2445,8 +2445,8 @@ async def _reroll_single_account(reg_info, srv_info, idx_label, seq_num=1):
             await asyncio.sleep(0.15)
           try:
             if is_prod_claims:
-              claims.timeout = 1.55
-              claims.max_attempts = 1
+              claims.timeout = 1.45
+              claims.max_attempts = 2
             await claims.claim_all(
                 missing_codes, send_code, reconnect_for_codes,
                 lambda: REROLL_STATE["stopRequested"], code_progress,
@@ -3153,13 +3153,18 @@ def start_reroll_background(count=1000, sid_str="latest", stop_on_win=False, pre
                   if REROLL_STATE["stopRequested"]:
                     return
                 res = await _reroll_single_account(reg_info, cur_srv, f"{idx_order}/{count}", seq_num=idx_order)
-                if res and (res.get("isJackpot2x") or len(res.get("heroes5Star") or []) >= 1 or len(res.get("confirmedCodes") or []) >= 1):
+                if res and len(res.get("heroes5Star") or []) >= 11 and len(res.get("confirmedCodes") or []) == len(REROLL_GIFTCODES):
                   break
             finally:
               with REROLL_LOCK:
                 IN_FLIGHT_USERS.discard(reg_info["username"])
 
-            if not res or (len(res.get("heroes5Star") or []) < 5 and not res.get("isJackpot2x")):
+            # BỘ LỌC CHẶN PASS GIẢ: Bắt buộc tài khoản hợp lệ phải có ít nhất 11 tướng 5★ và đủ 28/28 mã Giftcode
+            if not res or len(res.get("heroes5Star") or []) < 11 or len(res.get("confirmedCodes") or []) < len(REROLL_GIFTCODES):
+              if res:
+                disp_acc_chk = "***" if os.environ.get("GITHUB_ACTIONS", "").lower() == "true" else res.get("account")
+                code_stat_chk = res.get("codesClaimed", "0/0")
+                print(f"⚠️ [{disp_acc_chk}] Bỏ qua nick chưa đạt chuẩn ({len(res.get('heroes5Star') or [])} tướng 5★ < 11, code {code_stat_chk}) — Lọc sạch pass giả!", flush=True)
               if reg_info.get("reused"):
                 with REROLL_LOCK:
                   if reg_info["username"] in REUSABLE_POOL:
