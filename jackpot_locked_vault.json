@@ -2005,5 +2005,16 @@
     "lockedAt": "2026-10-29T06:52:22.930Z",
     "serverId": "610105",
     "serverName": "[S105] Sư Đà Lĩnh-S5"
+  },
+  {
+    "idx": 140201,
+    "username": "ntdung140201",
+    "password": "ntdvs5hcd",
+    "accId": "721941838",
+    "phone": "0962443056",
+    "funid": "386749196",
+    "lockedAt": "2026-10-29T07:03:27.338Z",
+    "serverId": "610106",
+    "serverName": "[S106] Sư Đà Lĩnh-S6"
   }
 ]
