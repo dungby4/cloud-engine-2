@@ -3336,5 +3336,38 @@
     "lockedAt": "2026-10-30T17:37:45.626Z",
     "serverId": "610110",
     "serverName": "[S110] Sư Đà Lĩnh-S10"
+  },
+  {
+    "idx": 550339,
+    "username": "ntdung550339",
+    "password": "dg7uzagj",
+    "accId": "725078381",
+    "phone": "0974579866",
+    "funid": "387067656",
+    "lockedAt": "2026-10-30T17:43:18.364Z",
+    "serverId": "610110",
+    "serverName": "[S110] Sư Đà Lĩnh-S10"
+  },
+  {
+    "idx": 565039,
+    "username": "ntdung565039",
+    "password": "dn3udy8x",
+    "accId": "722004014",
+    "phone": "0373594441",
+    "funid": "386755654",
+    "lockedAt": "2026-10-30T17:44:10.667Z",
+    "serverId": "610110",
+    "serverName": "[S110] Sư Đà Lĩnh-S10"
+  },
+  {
+    "idx": 565069,
+    "username": "ntdung565069",
+    "password": "dn95pp3a",
+    "accId": "722015909",
+    "phone": "0375053476",
+    "funid": "386756854",
+    "lockedAt": "2026-10-30T17:44:35.182Z",
+    "serverId": "610110",
+    "serverName": "[S110] Sư Đà Lĩnh-S10"
   }
 ]
