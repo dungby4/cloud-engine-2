@@ -5228,5 +5228,16 @@
     "lockedAt": "2026-11-03T11:47:05.156Z",
     "serverId": "610121",
     "serverName": "[S121] Thông Thiên Hà-S1"
+  },
+  {
+    "idx": 140139,
+    "username": "ntdung140139",
+    "password": "dn6b4c83",
+    "accId": "721933073",
+    "phone": "0976138772",
+    "funid": "386748279",
+    "lockedAt": "2026-11-03T12:02:15.500Z",
+    "serverId": "610122",
+    "serverName": "[S122] Thông Thiên Hà-S2"
   }
 ]
