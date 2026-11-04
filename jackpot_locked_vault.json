@@ -7340,5 +7340,49 @@
     "lockedAt": "2026-11-04T15:36:46.109Z",
     "serverId": "610125",
     "serverName": "[S125] Thông Thiên Hà-S5"
+  },
+  {
+    "idx": 580071901,
+    "username": "ntdung580071901",
+    "password": "dg2w8dky",
+    "accId": "726339346",
+    "phone": "0383116057",
+    "funid": "387206578",
+    "lockedAt": "2026-11-04T15:45:22.798Z",
+    "serverId": "610125",
+    "serverName": "[S125] Thông Thiên Hà-S5"
+  },
+  {
+    "idx": 548075677,
+    "username": "ntdung548075677",
+    "password": "dnrj9zfb",
+    "accId": "726271466",
+    "phone": "0362183571",
+    "funid": "387199614",
+    "lockedAt": "2026-11-04T15:45:37.691Z",
+    "serverId": "610125",
+    "serverName": "[S125] Thông Thiên Hà-S5"
+  },
+  {
+    "idx": 548675705,
+    "username": "ntdung548675705",
+    "password": "dbyb3rdgy",
+    "accId": "726275825",
+    "phone": "0379725938",
+    "funid": "387200067",
+    "lockedAt": "2026-11-04T15:46:04.665Z",
+    "serverId": "610125",
+    "serverName": "[S125] Thông Thiên Hà-S5"
+  },
+  {
+    "idx": 578810512,
+    "username": "ntdung578810512",
+    "password": "dbyx8f49g",
+    "accId": "726335141",
+    "phone": "0973699129",
+    "funid": "387206153",
+    "lockedAt": "2026-11-04T15:46:54.546Z",
+    "serverId": "610125",
+    "serverName": "[S125] Thông Thiên Hà-S5"
   }
 ]
