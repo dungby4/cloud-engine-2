@@ -6504,5 +6504,38 @@
     "lockedAt": "2026-11-04T05:02:31.914Z",
     "serverId": "610124",
     "serverName": "[S124] Thông Thiên Hà-S4"
+  },
+  {
+    "idx": 170799,
+    "username": "ntdung170799",
+    "password": "dn8csh4u",
+    "accId": "722035899",
+    "phone": "0987999240",
+    "funid": "386758885",
+    "lockedAt": "2026-11-04T05:08:41.818Z",
+    "serverId": "610124",
+    "serverName": "[S124] Thông Thiên Hà-S4"
+  },
+  {
+    "idx": 170850,
+    "username": "ntdung170850",
+    "password": "ntddg42bh",
+    "accId": "725011711",
+    "phone": "0385487812",
+    "funid": "387060697",
+    "lockedAt": "2026-11-04T05:08:49.418Z",
+    "serverId": "610124",
+    "serverName": "[S124] Thông Thiên Hà-S4"
+  },
+  {
+    "idx": 10764965,
+    "username": "ntdung10764965",
+    "password": "dgafqa7e",
+    "accId": "725164469",
+    "phone": "0391567932",
+    "funid": "387079096",
+    "lockedAt": "2026-11-04T05:11:04.548Z",
+    "serverId": "610124",
+    "serverName": "[S124] Thông Thiên Hà-S4"
   }
 ]
