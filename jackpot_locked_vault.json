@@ -8781,5 +8781,27 @@
     "lockedAt": "2026-11-05T13:15:29.838Z",
     "serverId": "610128",
     "serverName": "[S128] Thông Thiên Hà-S8"
+  },
+  {
+    "idx": 625049,
+    "username": "ntdung625049",
+    "password": "td5hn7jy",
+    "accId": "722010616",
+    "phone": "0972211504",
+    "funid": "386756315",
+    "lockedAt": "2026-11-05T13:19:21.235Z",
+    "serverId": "610128",
+    "serverName": "[S128] Thông Thiên Hà-S8"
+  },
+  {
+    "idx": 625145,
+    "username": "ntdung625145",
+    "password": "dg2n5squ",
+    "accId": "725000411",
+    "phone": "0384180481",
+    "funid": "387059492",
+    "lockedAt": "2026-11-05T13:19:36.001Z",
+    "serverId": "610128",
+    "serverName": "[S128] Thông Thiên Hà-S8"
   }
 ]
