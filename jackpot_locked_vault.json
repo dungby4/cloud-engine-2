@@ -10002,5 +10002,38 @@
     "lockedAt": "2026-11-06T05:45:07.443Z",
     "serverId": "610130",
     "serverName": "[S130] Thông Thiên Hà-S10"
+  },
+  {
+    "idx": 200306,
+    "username": "ntdung200306",
+    "password": "td26eas6",
+    "accId": "721954875",
+    "phone": "0967020951",
+    "funid": "386750587",
+    "lockedAt": "2026-11-06T05:47:42.801Z",
+    "serverId": "610130",
+    "serverName": "[S130] Thông Thiên Hà-S10"
+  },
+  {
+    "idx": 200323,
+    "username": "ntdung200323",
+    "password": "dbyuvz4a7",
+    "accId": "721956884",
+    "phone": "0368957965",
+    "funid": "386750801",
+    "lockedAt": "2026-11-06T05:49:04.926Z",
+    "serverId": "610130",
+    "serverName": "[S130] Thông Thiên Hà-S10"
+  },
+  {
+    "idx": 200378,
+    "username": "ntdung200378",
+    "password": "dbyujh6zh",
+    "accId": "721963137",
+    "phone": "0984089182",
+    "funid": "386751462",
+    "lockedAt": "2026-11-06T05:49:45.166Z",
+    "serverId": "610130",
+    "serverName": "[S130] Thông Thiên Hà-S10"
   }
 ]
