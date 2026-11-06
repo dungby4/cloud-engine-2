@@ -10189,5 +10189,27 @@
     "lockedAt": "2026-11-06T07:14:49.684Z",
     "serverId": "610130",
     "serverName": "[S130] Thông Thiên Hà-S10"
+  },
+  {
+    "idx": 550719646,
+    "username": "ntdung550719646",
+    "password": "dbyz6wt7c",
+    "accId": "726277397",
+    "phone": "0974221233",
+    "funid": "387200236",
+    "lockedAt": "2026-11-06T07:15:09.112Z",
+    "serverId": "610130",
+    "serverName": "[S130] Thông Thiên Hà-S10"
+  },
+  {
+    "idx": 548405230,
+    "username": "ntdung548405230",
+    "password": "tdqf2mx7",
+    "accId": "726272352",
+    "phone": "0963424747",
+    "funid": "387199704",
+    "lockedAt": "2026-11-06T07:15:36.961Z",
+    "serverId": "610130",
+    "serverName": "[S130] Thông Thiên Hà-S10"
   }
 ]
