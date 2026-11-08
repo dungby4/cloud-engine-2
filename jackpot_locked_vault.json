@@ -12950,5 +12950,27 @@
     "lockedAt": "2026-11-08T12:01:58.758Z",
     "serverId": "610136",
     "serverName": "[S136] Lôi Âm Tự-S6"
+  },
+  {
+    "idx": 140336,
+    "username": "ntdung140336",
+    "password": "dnwq74ua",
+    "accId": "721959279",
+    "phone": "0965944603",
+    "funid": "386751050",
+    "lockedAt": "2026-11-08T12:04:44.192Z",
+    "serverId": "610136",
+    "serverName": "[S136] Lôi Âm Tự-S6"
+  },
+  {
+    "idx": 140468,
+    "username": "ntdung140468",
+    "password": "dby8366r6",
+    "accId": "721974832",
+    "phone": "0385024592",
+    "funid": "386752676",
+    "lockedAt": "2026-11-08T12:06:31.603Z",
+    "serverId": "610136",
+    "serverName": "[S136] Lôi Âm Tự-S6"
   }
 ]
