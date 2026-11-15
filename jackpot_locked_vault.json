@@ -15843,5 +15843,27 @@
     "lockedAt": "2026-11-15T12:15:02.000Z",
     "serverId": "610152",
     "serverName": "[S152] Quỷ Môn Quan-S2"
+  },
+  {
+    "idx": 230776,
+    "username": "ntdung230776",
+    "password": "dggs35kt",
+    "accId": "722035989",
+    "phone": "0365997037",
+    "funid": "386758895",
+    "lockedAt": "2026-11-15T12:17:00.834Z",
+    "serverId": "610152",
+    "serverName": "[S152] Quỷ Môn Quan-S2"
+  },
+  {
+    "idx": 674387369,
+    "username": "ntdung674387369",
+    "password": "dbypn8nru",
+    "accId": "726530141",
+    "phone": "0982866183",
+    "funid": "387226256",
+    "lockedAt": "2026-11-15T12:17:02.096Z",
+    "serverId": "610152",
+    "serverName": "[S152] Quỷ Môn Quan-S2"
   }
 ]
